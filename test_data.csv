@@ -1,0 +1,12 @@
+subject_id,age,gender,condition,treatment_group,baseline_score,followup_score,completion_date,notes
+001,45,F,diabetes,control,85,78,2024-01-15,"Patient completed study"
+002,52,M,hypertension,treatment,92,88,2024-01-20,"Minor side effects noted"
+003,38,F,diabetes,treatment,76,82,2024-01-18,"Significant improvement"
+004,61,M,diabetes,control,89,84,2024-01-22,"Good compliance"
+005,29,F,hypertension,treatment,94,91,2024-01-25,"Excellent response"
+006,47,M,diabetes,treatment,72,79,2024-01-28,"Moderate improvement"
+007,55,F,hypertension,control,88,86,2024-02-01,"Stable condition"
+008,33,M,diabetes,treatment,81,87,2024-02-03,"Positive outcome"
+009,42,F,hypertension,treatment,90,93,2024-02-05,"Outstanding results"
+010,58,M,diabetes,control,77,75,2024-02-08,"Slight decline"
+

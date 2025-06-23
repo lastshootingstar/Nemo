@@ -1,0 +1,110 @@
+{
+  "architecture": {
+    "type": "Client-Server",
+    "backend": {
+      "framework": "Hono.js",
+      "entry": "backend/server.ts",
+      "description": "Defines HTTP server, CORS, health check, error handlers, mounts API routers"
+    },
+    "frontend": {
+      "framework": "React + Vite",
+      "entry": "frontend/src/main.tsx",
+      "description": "Bootstraps React app, applies Tailwind CSS, mounts <App/>"
+    }
+  },
+  "files": {
+    ".gitignore": { "purpose": "Ignore node_modules, build artefacts, .env files", "dependsOn": [], "usedBy": ["git"], "keyExports": [], "keyTypes": [] },
+    "README.md": { "purpose": "Project overview and usage instructions", "dependsOn": [], "usedBy": ["developer"], "keyExports": [], "keyTypes": [] },
+    "Setup_intro.md": { "purpose": "Initial setup guide", "dependsOn": [], "usedBy": ["developer"], "keyExports": [], "keyTypes": [] },
+    "test_data.csv": { "purpose": "Sample data for testing uploads", "dependsOn": [], "usedBy": ["backend/services/fileProcessor.ts"], "keyExports": [], "keyTypes": [] },
+    "backend": { "purpose": "Server-side code and data", "contains": [".env", ".env.example", "package.json", "package-lock.json", "tsconfig.json", "server.ts", "routes", "services", "data", "types", "utils"] },
+    "backend/.env": { "purpose": "Environment variables (ignored in repo)", "dependsOn": [], "usedBy": ["backend/server.ts"], "keyExports": [], "keyTypes": [] },
+    "backend/.env.example": { "purpose": "Template for .env", "dependsOn": [], "usedBy": ["developer"], "keyExports": [], "keyTypes": [] },
+    "backend/package.json": { "purpose": "Backend npm dependencies & scripts", "dependsOn": [], "usedBy": ["npm"], "keyExports": [], "keyTypes": [] },
+    "backend/package-lock.json": { "purpose": "Locked dependency tree", "dependsOn": [], "usedBy": ["npm"], "keyExports": [], "keyTypes": [] },
+    "backend/tsconfig.json": { "purpose": "TypeScript compiler options for backend", "dependsOn": [], "usedBy": ["tsc"], "keyExports": [], "keyTypes": [] },
+    "backend/server.ts": { "purpose": "App initialization, middleware, route mounting, server launch", "dependsOn": ["./routes/upload", "./routes/analysis", "./routes/chat", "dotenv/config"], "usedBy": [], "keyExports": ["default serve"], "keyTypes": [] },
+    "backend/routes": { "purpose": "API route definitions", "contains": ["upload.ts", "analysis.ts", "chat.ts"] },
+    "backend/routes/upload.ts": { "purpose": "Handles file upload, validation, processing, dataset CRUD", "dependsOn": ["../services/fileProcessor", "../services/validator", "../types/api", "../types/data", "multer", "fs", "path"], "usedBy": ["backend/server.ts"], "keyExports": ["datasets", "default upload router"], "keyTypes": ["UploadResponse"] },
+    "backend/routes/analysis.ts": { "purpose": "Endpoint for dataset analysis requests", "dependsOn": ["../services/dataAnalyzer", "../types/api", "../types/data"], "usedBy": ["backend/server.ts"], "keyExports": ["default analysis router"], "keyTypes": [] },
+    "backend/routes/chat.ts": { "purpose": "Endpoint for AI-powered chat on datasets", "dependsOn": ["../services/deepSeekService", "../types/api"], "usedBy": ["backend/server.ts"], "keyExports": ["default chat router"], "keyTypes": [] },
+    "backend/services": { "purpose": "Business logic / domain services", "contains": ["fileProcessor.ts", "validator.ts", "dataAnalyzer.ts", "deepSeekService.ts"] },
+    "backend/services/fileProcessor.ts": { "purpose": "Parse CSV/XLSX files, build Dataset, analyze columns", "dependsOn": ["csv-parse", "xlsx", "../types/data", "../services/validator"], "usedBy": ["backend/routes/upload.ts", "backend/routes/analysis.ts"], "keyExports": ["FileProcessor"], "keyTypes": ["Dataset"] },
+    "backend/services/validator.ts": { "purpose": "Validate & sanitize uploaded files", "dependsOn": ["path", "mime-types"], "usedBy": ["backend/routes/upload.ts"], "keyExports": ["DataValidator"], "keyTypes": ["ValidationResult"] },
+    "backend/services/dataAnalyzer.ts": { "purpose": "Perform statistical & summary analysis on Dataset", "dependsOn": ["../types/data", "../services/fileProcessor"], "usedBy": ["backend/routes/analysis.ts"], "keyExports": ["DataAnalyzer"], "keyTypes": ["AnalysisResult"] },
+    "backend/services/deepSeekService.ts": { "purpose": "Integrate with DeepSeek AI API for insights", "dependsOn": ["axios", "../types/api"], "usedBy": ["backend/routes/chat.ts", "backend/routes/analysis.ts"], "keyExports": ["DeepSeekService"], "keyTypes": ["ChatResponse"] },
+    "backend/data": { "purpose": "Storage for uploads & processed data", "contains": ["exports", "processed", "uploads"] },
+    "backend/types": { "purpose": "TypeScript domain types", "contains": ["analysis.ts", "api.ts", "data.ts"] },
+    "backend/types/analysis.ts": { "purpose": "Types for analysis results", "dependsOn": [], "usedBy": ["backend/services/dataAnalyzer.ts", "backend/routes/analysis.ts"], "keyExports": ["AnalysisResult"], "keyTypes": ["ColumnStats","NumericStats"] },
+    "backend/types/api.ts": { "purpose": "API request/response types", "dependsOn": [], "usedBy": ["backend/routes/upload.ts","backend/routes/analysis.ts","backend/routes/chat.ts"], "keyExports": ["ApiResponse","UploadResponse"], "keyTypes": [] },
+    "backend/types/data.ts": { "purpose": "Dataset & metadata types", "dependsOn": [], "usedBy": ["backend/services/fileProcessor.ts","backend/routes/upload.ts","backend/routes/analysis.ts"], "keyExports": ["Dataset","Metadata"], "keyTypes": [] },
+    "backend/utils": { "purpose": "Utility functions (empty or misc)", "contains": [] },
+    "frontend": { "purpose": "Client-side code & assets", "contains": ["index.html","package.json","package-lock.json","tsconfig.json","tsconfig.node.json","vite.config.ts","postcss.config.js","tailwind.config.js","public","src"] },
+    "frontend/index.html": { "purpose": "HTML shell for SPA", "dependsOn": [], "usedBy": ["browser"], "keyExports": [], "keyTypes": [] },
+    "frontend/package.json": { "purpose": "Frontend npm dependencies & scripts", "dependsOn": [], "usedBy": ["npm"], "keyExports": [], "keyTypes": [] },
+    "frontend/package-lock.json": { "purpose": "Locked dependency tree", "dependsOn": [], "usedBy": ["npm"], "keyExports": [], "keyTypes": [] },
+    "frontend/tsconfig.json": { "purpose": "TypeScript config for source", "dependsOn": [], "usedBy": ["tsc","Vite"], "keyExports": [], "keyTypes": [] },
+    "frontend/tsconfig.node.json": { "purpose": "TypeScript config for Node env", "dependsOn": [], "usedBy": ["Vite"], "keyExports": [], "keyTypes": [] },
+    "frontend/vite.config.ts": { "purpose": "Vite build & dev configuration", "dependsOn": ["path","@vitejs/plugin-react"], "usedBy": ["vite"], "keyExports": ["default config"], "keyTypes": [] },
+    "frontend/postcss.config.js": { "purpose": "PostCSS config for Tailwind", "dependsOn": ["tailwindcss","autoprefixer"], "usedBy": ["postcss"], "keyExports": [], "keyTypes": [] },
+    "frontend/tailwind.config.js": { "purpose": "Tailwind CSS config", "dependsOn": ["tailwindcss"], "usedBy": ["postcss"], "keyExports": [], "keyTypes": [] },
+    "frontend/public": { "purpose": "Static assets", "contains": ["test.html"] },
+    "frontend/public/test.html": { "purpose": "Test page", "dependsOn": [], "usedBy": ["developer"], "keyExports": [], "keyTypes": [] },
+    "frontend/src": { "purpose": "Application source code", "contains": ["main.tsx","App.tsx","index.css","components","hooks","utils"] },
+    "frontend/src/main.tsx": { "purpose": "Render React app into DOM", "dependsOn": ["./App","react","react-dom"], "usedBy": [], "keyExports": [], "keyTypes": [] },
+    "frontend/src/App.tsx": { "purpose": "Root component composing UI panels", "dependsOn": ["./components/ChatInterface","./components/DataUpload","./components/DataPreview","./components/VisualizationPanel"], "usedBy": ["main.tsx"], "keyExports": ["App"], "keyTypes": [] },
+    "frontend/src/index.css": { "purpose": "Global styles (Tailwind directives)", "dependsOn": [], "usedBy": ["App.tsx"], "keyExports": [], "keyTypes": [] },
+    "frontend/src/components/ChatInterface.tsx": { "purpose": "Chat UI for dataset Q&A", "dependsOn": ["react","./DataPreview"], "usedBy": ["App.tsx"], "keyExports": ["ChatInterface"], "keyTypes": [] },
+    "frontend/src/components/DataUpload.tsx": { "purpose": "Upload CSV/XLSX files UI", "dependsOn": ["react","axios"], "usedBy": ["App.tsx"], "keyExports": ["DataUpload"], "keyTypes": [] },
+    "frontend/src/components/DataPreview.tsx": { "purpose": "Display dataset preview table", "dependsOn": ["react"], "usedBy": ["ChatInterface.tsx","App.tsx"], "keyExports": ["DataPreview"], "keyTypes": [] },
+    "frontend/src/components/VisualizationPanel.tsx": { "purpose": "Charts for dataset analysis", "dependsOn": ["react","chart.js"], "usedBy": ["App.tsx"], "keyExports": ["VisualizationPanel"], "keyTypes": [] },
+    "frontend/src/hooks": { "purpose": "Custom React hooks", "contains": [] },
+    "frontend/src/utils": { "purpose": "Client-side utility functions", "contains": [] }
+  },
+  "dataFlows": [
+    {
+      "name": "File Upload & Processing",
+      "steps": [
+        "User selects file in DataUpload.tsx; axios POST to /api/upload",
+        "upload.ts receives file, DataValidator.validateUploadedFile",
+        "FileProcessor.processCsvFile/processExcelFile reads & parses file into Dataset",
+        "Temporary file cleaned up; dataset stored in-memory Map",
+        "Response returned with datasetId & summary"
+      ]
+    },
+    {
+      "name": "List Datasets",
+      "steps": [
+        "App.tsx GET /api/upload/datasets",
+        "upload.ts returns list of metadata",
+        "Frontend displays dataset list"
+      ]
+    },
+    {
+      "name": "Dataset Detail & Analysis",
+      "steps": [
+        "Frontend GET /api/upload/datasets/:id",
+        "upload.ts returns Dataset + analyzed columns preview",
+        "App passes data to VisualizationPanel & DataPreview"
+      ]
+    },
+    {
+      "name": "Statistical Analysis",
+      "steps": [
+        "Frontend GET /api/analysis?datasetId=",
+        "analysis.ts calls DataAnalyzer.analyze",
+        "Optionally DeepSeekService for AI insights",
+        "Response sent; VisualizationPanel updates charts"
+      ]
+    },
+    {
+      "name": "Chat Interaction",
+      "steps": [
+        "User POST /api/chat with query",
+        "chat.ts calls DeepSeekService.query",
+        "DeepSeekService calls external API; ChatResponse returned",
+        "chat.ts returns ApiResponse; ChatInterface displays reply"
+      ]
+    }
+  ]
+}

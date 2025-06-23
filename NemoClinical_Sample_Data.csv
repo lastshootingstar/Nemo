@@ -1,0 +1,16 @@
+patient_id,age,gender,bmi,systolic_bp,diastolic_bp,smoker,cholesterol_level,treatment_group
+NEMO-001,45,Female,28.5,120,80,No,200,A
+NEMO-002,62,Male,31.2,145,92,Yes,240,B
+NEMO-003,38,Female,22.1,110,75,No,180,Placebo
+NEMO-004,55,Male,29.8,135,88,No,225,A
+NEMO-005,49,Female,33.0,150,95,Yes,260,B
+NEMO-006,71,Male,26.4,130,85,No,,A
+NEMO-007,42,Female,24.9,115,78,Yes,210,Placebo
+NEMO-008,58,Male,34.1,155,100,Yes,280,B
+NEMO-009,34,Female,21.5,105,70,No,170,A
+NEMO-010,65,Male,27.9,140,90,No,230,Placebo
+NEMO-011,47,Female,29.3,125,82,Yes,215,B
+NEMO-012,51,Male,30.1,142,94,No,235,A
+NEMO-013,39,Female,,112,76,No,190,Placebo
+NEMO-014,68,Male,28.7,138,89,Yes,250,B
+NEMO-015,44,Female,26.8,118,79,No,195,A

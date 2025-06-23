@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+    <h1>NemoClinical Test</h1>
+    <p>If you can see this, the server is working!</p>
+    <div id="root">Loading...</div>
+    <script>
+        console.log('Test page loaded');
+        fetch('/api/upload/datasets')
+            .then(response => response.json())
+            .then(data => console.log('API test:', data))
+            .catch(error => console.error('API error:', error));
+    </script>
+</body>
+</html>
+
