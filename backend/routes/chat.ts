@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { DeepSeekService } from '../services/deepSeekService';
+import { GeminiService } from '../services/geminiService';
 import { DataValidator } from '../services/validator';
 import { ApiResponse, ChatRequest, ChatResponse } from '../types/api';
 import { datasets } from './upload';
@@ -14,7 +14,7 @@ chat.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
-const deepSeekService = DeepSeekService.getInstance();
+const geminiService = GeminiService.getInstance();
 const validator = DataValidator.getInstance();
 
 // Store chat history for context (in production, use a database)
@@ -68,7 +68,7 @@ chat.post('/query', async (c) => {
       context: context || history.slice(-5).map(h => h.content) // Last 5 messages for context
     };
 
-    const response = await deepSeekService.processNaturalLanguageQuery(chatRequest, dataset);
+    const response = await geminiService.processNaturalLanguageQuery(chatRequest, dataset);
 
     // Add AI response to history
     history.push({
@@ -177,7 +177,14 @@ chat.post('/insights/:datasetId', async (c) => {
       }, 400);
     }
 
-    const insights = await deepSeekService.generateInsights(dataset, analysisResults);
+    // Since the new Gemini service does not have a separate "generateInsights" method,
+    // we will call the primary query method and pass the analysis results as context.
+    const insightRequest: ChatRequest = {
+      message: `Generate insights based on these analysis results: ${JSON.stringify(analysisResults, null, 2)}`,
+      datasetId,
+    };
+    const insightResponse = await geminiService.processNaturalLanguageQuery(insightRequest, dataset);
+    const insights = insightResponse.response;
 
     return c.json<ApiResponse>({
       success: true,
