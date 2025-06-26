@@ -117,16 +117,20 @@ Please analyze this request in the context of the provided dataset and suggest t
     suggestions: string[];
   } {
     try {
-      const jsonMatch = aiResponse.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch && jsonMatch[1]) {
-        const parsed = JSON.parse(jsonMatch[1]);
-        return {
-          explanation: parsed.explanation || aiResponse,
-          analysis: parsed.analysis,
-          visualization: parsed.visualization,
-          suggestions: parsed.suggestions || [],
-        };
-      }
+      // Attempt to extract structured information from the natural language response
+      const explanation = aiResponse;
+      // Implement logic to extract analysis, visualization, and suggestions from the natural language response
+      // This will likely involve keyword matching, regular expressions, or more advanced NLP techniques
+      const analysis = this.extractAnalysisIntent(aiResponse, dataset).analysis;
+      const visualization = this.extractAnalysisIntent(aiResponse, dataset).visualization;
+      const suggestions = this.generateSuggestions(dataset);
+
+      return {
+        explanation: explanation,
+        analysis: analysis,
+        visualization: visualization,
+        suggestions: suggestions,
+      };
     } catch (error) {
       console.warn('Failed to parse structured AI response, using fallback');
     }
@@ -222,7 +226,7 @@ Please analyze this request in the context of the provided dataset and suggest t
     return suggestions;
   }
 
-  private async performAnalysis(analysis: any, dataset: Dataset): Promise<any> {
+  private async performAnalysis(analysis: any, dataset: Dataset): Promise<string | null> {
     if (!analysis || !analysis.type || !analysis.columns) {
       return null;
     }
@@ -231,37 +235,65 @@ Please analyze this request in the context of the provided dataset and suggest t
     const dataAnalyzer = (await import('../services/dataAnalyzer')).DataAnalyzer.getInstance();
 
     try {
+      let analysisResults: any = null;
       switch (type) {
         case 'descriptive':
           if (columns.length !== 1) return null;
-          return dataAnalyzer.calculateDescriptiveStats(dataset, columns[0]);
+          analysisResults = await dataAnalyzer.calculateDescriptiveStats(dataset, columns[0]);
+          break;
         case 'correlation':
           if (columns.length !== 2) return null;
-          return dataAnalyzer.calculateCorrelation(dataset, columns[0], columns[1]);
+          analysisResults = await dataAnalyzer.calculateCorrelation(dataset, columns[0], columns[1]);
+          break;
         case 'frequency':
           if (columns.length !== 1) return null;
-          return dataAnalyzer.generateFrequencyDistribution(dataset, columns[0]);
+          analysisResults = await dataAnalyzer.generateFrequencyDistribution(dataset, columns[0]);
+          break;
         case 'histogram':
           if (columns.length !== 1) return null;
-          return dataAnalyzer.generateHistogram(dataset, columns[0]);
+          analysisResults = await dataAnalyzer.generateHistogram(dataset, columns[0]);
+          break;
         case 'scatter':
           if (columns.length !== 2) return null;
-          return dataAnalyzer.generateScatterPlot(dataset, columns[0], columns[1]);
+          analysisResults = await dataAnalyzer.generateScatterPlot(dataset, columns[0], columns[1]);
+          break;
         case 'kaplan-meier':
           if (columns.length !== 2) return null;
           const timeToEvent = dataset.rows.map(row => row[columns[0]]).filter(val => val !== null && typeof val === 'number') as number[];
           const eventOccurred = dataset.rows.map(row => row[columns[1]]).filter(val => val !== null && typeof val === 'boolean') as boolean[];
-          return dataAnalyzer.calculateKaplanMeier(timeToEvent, eventOccurred);
+          analysisResults = await dataAnalyzer.calculateKaplanMeier(timeToEvent, eventOccurred);
+          break;
         case 'chi-squared with post-hoc analysis':
-          return this.performChiSquaredWithPostHoc(dataset, columns, analysis.parameters);
+          analysisResults = await this.performChiSquaredWithPostHoc(dataset, columns, analysis.parameters);
+          break;
         case 'summary':
-          return dataAnalyzer.getSummaryStatistics(dataset);
+          analysisResults = await dataAnalyzer.getSummaryStatistics(dataset);
+          break;
         default:
           return null;
       }
+
+      if (!analysisResults) {
+        return "No analysis results found.";
+      }
+
+      // Format the analysis results into a human-readable text format
+      let formattedResults = `Analysis Type: ${type}\n`;
+      for (const column of columns) {
+        formattedResults += `\nColumn: ${column}\n`;
+        if (typeof analysisResults === 'object' && analysisResults !== null) {
+          for (const [key, value] of Object.entries(analysisResults)) {
+            formattedResults += `  ${key}: ${value}\n`;
+          }
+        } else {
+          formattedResults += `  Results: ${analysisResults}\n`;
+        }
+      }
+
+      return formattedResults;
     } catch (error) {
       console.error('Error performing analysis:', error);
-      return null;
+      return "Error performing analysis. Please try again.";
     }
   }
 

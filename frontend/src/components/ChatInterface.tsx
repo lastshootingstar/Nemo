@@ -185,19 +185,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ datasetId }) => {
                   </span>
                 </div>
                 <p className="text-sm">{msg.content}</p>
-
-                {/* Analysis Results */}
+                
+                {/* Updated Analysis Results Section */}
                 {msg.analysisResults && (
-                  <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border">
-                    <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Analysis Results:
-                    </h4>
-                    <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto">
-                      {JSON.stringify(msg.analysisResults, null, 2)}
-                    </pre>
+                  <div>
+                    <div>
+                      Analysis Results: {msg.analysisResults.title}
+                    </div>
+                    <div>
+                      Description: {msg.analysisResults.description}
+                    </div>
+                    
+                    {msg.analysisResults.data && msg.analysisResults.data.map((columnData: any) => (
+                      <div key={columnData.column} className="mb-4">
+                        <h5 className="font-bold mb-2">{columnData.column}</h5>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>Count: {columnData.count}</div>
+                          <div>Mean: {columnData.mean?.toFixed(2)}</div>
+                          <div>Median: {columnData.median}</div>
+                          <div>Std Dev: {columnData.standardDeviation?.toFixed(2)}</div>
+                          <div>Variance: {columnData.variance?.toFixed(2)}</div>
+                          <div>Min: {columnData.min}</div>
+                          <div>Max: {columnData.max}</div>
+                          <div>Mode: {columnData.mode}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-
+                
                 {/* Suggestions */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
                   <div className="mt-3">
