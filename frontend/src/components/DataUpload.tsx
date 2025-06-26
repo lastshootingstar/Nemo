@@ -41,8 +41,12 @@ const DataUpload: React.FC<DataUploadProps> = ({ onDatasetUploaded }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Upload failed');
+        } catch (e) {
+          throw new Error(response.statusText || 'An unknown error occurred');
+        }
       }
 
       const result = await response.json();

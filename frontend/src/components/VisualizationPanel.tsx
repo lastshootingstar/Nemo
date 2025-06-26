@@ -8,7 +8,7 @@ interface VisualizationPanelProps {
 }
 
 interface AnalysisResult {
-  type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary';
+  type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier';
   title: string;
   description: string;
   data: any;
@@ -30,7 +30,7 @@ interface DatasetDetails {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) => {
-  const [selectedAnalysis, setSelectedAnalysis] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary'>('frequency');
+  const [selectedAnalysis, setSelectedAnalysis] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier'>('frequency');
   const [selectedColumn, setSelectedColumn] = useState<string>('');
   const [selectedColumn2, setSelectedColumn2] = useState<string>('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -73,6 +73,10 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           options.method = 'GET';
           delete options.body;
           break;
+        case 'kaplan-meier':
+          url = `/api/analysis/kaplan-meier/${datasetId}`;
+          options.body = JSON.stringify({ timeColumn: params.timeColumn, eventColumn: params.eventColumn });
+          break;
       }
 
       const response = await fetch(url, options);
@@ -112,6 +116,10 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
         break;
       case 'summary':
         params = {};
+        break;
+      case 'kaplan-meier':
+        if (!selectedColumn || !selectedColumn2) return;
+        params = { timeColumn: selectedColumn, eventColumn: selectedColumn2 };
         break;
     }
 
@@ -201,6 +209,23 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
         }
         break;
 
+      case 'kaplan-meier':
+        if (Array.isArray(data)) {
+          return (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" dataKey="time" label={{ value: 'Time', position: 'insideBottomRight', offset: 0 }} />
+                <YAxis type="number" dataKey="survival" label={{ value: 'Survival Probability', angle: -90, position: 'insideLeft' }} domain={[0, 1]}/>
+                <Tooltip />
+                <Legend />
+                <Line type="stepAfter" dataKey="survival" stroke="#8884d8" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          );
+        }
+        break;
+
       default:
         return (
           <div className="p-8 text-center">
@@ -226,6 +251,10 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
     return dataset?.columnInfo.filter(col => col.type === 'number').map(col => col.name) || [];
   };
 
+  const getBooleanColumns = () => {
+    return dataset?.columnInfo.filter(col => col.type === 'boolean').map(col => col.name) || [];
+  };
+
   const getAllColumns = () => {
     return dataset?.columns || [];
   };
@@ -241,7 +270,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Analysis Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-600 mb-2">
               Analysis Type
             </label>
             <select
@@ -254,16 +283,18 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               <option value="correlation">Correlation</option>
               <option value="scatter">Scatter Plot</option>
               <option value="summary">Summary Statistics</option>
+              <option value="kaplan-meier">Kaplan-Meier Survival Analysis</option>
             </select>
           </div>
 
           {/* Column 1 */}
-          {(selectedAnalysis === 'frequency' || selectedAnalysis === 'histogram' || selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter') && (
+          {(selectedAnalysis === 'frequency' || selectedAnalysis === 'histogram' || selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {selectedAnalysis === 'frequency' ? 'Column' : 
+              <label className="block text-sm font-medium text-gray-600 mb-2">
+                {selectedAnalysis === 'frequency' ? 'Column' :
                  selectedAnalysis === 'histogram' ? 'Numeric Column' :
-                 selectedAnalysis === 'scatter' ? 'X-Axis Column' : 'First Column'}
+                 selectedAnalysis === 'scatter' ? 'X-Axis Column' :
+                 selectedAnalysis === 'kaplan-meier' ? 'Time to Event Column' : 'First Column'}
               </label>
               <select
                 value={selectedColumn}
@@ -271,7 +302,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">Select column...</option>
-                {(selectedAnalysis === 'histogram' ? getNumericColumns() : getAllColumns()).map(col => (
+                {(selectedAnalysis === 'histogram' || selectedAnalysis === 'kaplan-meier' ? getNumericColumns() : getAllColumns()).map(col => (
                   <option key={col} value={col}>{col}</option>
                 ))}
               </select>
@@ -279,10 +310,11 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           )}
 
           {/* Column 2 */}
-          {(selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter') && (
+          {(selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {selectedAnalysis === 'scatter' ? 'Y-Axis Column' : 'Second Column'}
+              <label className="block text-sm font-medium text-gray-600 mb-2">
+                {selectedAnalysis === 'scatter' ? 'Y-Axis Column' :
+                 selectedAnalysis === 'kaplan-meier' ? 'Event Occurred Column' : 'Second Column'}
               </label>
               <select
                 value={selectedColumn2}
@@ -290,7 +322,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">Select column...</option>
-                {getNumericColumns().map(col => (
+                {(selectedAnalysis === 'kaplan-meier' ? getBooleanColumns() : getNumericColumns()).map(col => (
                   <option key={col} value={col}>{col}</option>
                 ))}
               </select>
@@ -301,9 +333,9 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           <div className="flex items-end">
             <button
               onClick={handleRunAnalysis}
-              disabled={analysisMutation.isPending || 
+              disabled={analysisMutation.isPending ||
                 (selectedAnalysis !== 'summary' && !selectedColumn) ||
-                ((selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter') && !selectedColumn2)
+                ((selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && !selectedColumn2)
               }
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -332,7 +364,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
             </h3>
           </div>
           
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
+          <p className="text-gray-600 mb-6">
             {analysisResult.description}
           </p>
 
@@ -347,7 +379,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               View Raw Data
             </summary>
             <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-md overflow-x-auto">
-              <pre className="text-xs text-gray-600 dark:text-gray-400">
+              <pre className="text-xs text-gray-600">
                 {JSON.stringify(analysisResult.data, null, 2)}
               </pre>
             </div>
@@ -365,8 +397,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <TrendingUp className="w-8 h-8 text-blue-600 mb-2" />
-          <h3 className="font-medium text-gray-900 dark:text-white">Summary Stats</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h3 className="font-medium text-gray-900">Summary Stats</h3>
+          <p className="text-sm text-gray-600">
             Overview of all numeric columns
           </p>
         </button>
@@ -376,8 +408,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <BarChart3 className="w-8 h-8 text-green-600 mb-2" />
-          <h3 className="font-medium text-gray-900 dark:text-white">Frequency</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h3 className="font-medium text-gray-900">Frequency</h3>
+          <p className="text-sm text-gray-600">
             Distribution of categorical values
           </p>
         </button>
@@ -387,8 +419,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <Activity className="w-8 h-8 text-purple-600 mb-2" />
-          <h3 className="font-medium text-gray-900 dark:text-white">Histogram</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h3 className="font-medium text-gray-900">Histogram</h3>
+          <p className="text-sm text-gray-600">
             Distribution of numeric values
           </p>
         </button>
@@ -398,8 +430,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <Activity className="w-8 h-8 text-orange-600 mb-2" />
-          <h3 className="font-medium text-gray-900 dark:text-white">Scatter Plot</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <h3 className="font-medium text-gray-900">Scatter Plot</h3>
+          <p className="text-sm text-gray-600">
             Relationship between variables
           </p>
         </button>

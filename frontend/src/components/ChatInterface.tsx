@@ -10,14 +10,14 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  analysis?: any;
+  analysisResults?: any;   // <-- Added this line
   visualization?: any;
   suggestions?: string[];
 }
 
 interface ChatResponse {
   response: string;
-  analysis?: any;
+  analysisResults?: any;   // <-- Backend returns this
   visualization?: any;
   suggestions?: string[];
 }
@@ -82,7 +82,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ datasetId }) => {
         role: 'assistant',
         content: data.response,
         timestamp: new Date().toISOString(),
-        analysis: data.analysis,
+        analysisResults: data.analysisResults, // <-- Fix: use analysisResults!
         visualization: data.visualization,
         suggestions: data.suggestions,
       };
@@ -185,19 +185,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ datasetId }) => {
                   </span>
                 </div>
                 <p className="text-sm">{msg.content}</p>
-                
+
                 {/* Analysis Results */}
-                {msg.analysis && (
+                {msg.analysisResults && (
                   <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded border">
                     <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Analysis Suggested:
+                      Analysis Results:
                     </h4>
                     <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-x-auto">
-                      {JSON.stringify(msg.analysis, null, 2)}
+                      {JSON.stringify(msg.analysisResults, null, 2)}
                     </pre>
                   </div>
                 )}
-                
+
                 {/* Suggestions */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
                   <div className="mt-3">
@@ -268,4 +268,3 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ datasetId }) => {
 };
 
 export default ChatInterface;
-

@@ -1,4 +1,5 @@
 import * as ss from 'simple-statistics';
+import { compute } from '@fullstax/kaplan-meier-estimator';
 import { Dataset, DataRow } from '../types/data';
 import { DescriptiveStats, CorrelationResult, StatisticalResult, VisualizationConfig } from '../types/analysis';
 
@@ -211,6 +212,10 @@ export class DataAnalyzer {
       description: 'Descriptive statistics for all numeric columns',
       data: summary
     };
+  }
+
+  calculateKaplanMeier(timeToEvent: number[], eventOccurred: boolean[]) {
+    return compute(timeToEvent, eventOccurred);
   }
 }
 

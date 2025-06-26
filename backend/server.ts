@@ -18,6 +18,12 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+// Log every request
+app.use('*', async (c, next) => {
+  console.log(`${c.req.method} ${c.req.url}`);
+  await next();
+});
+
 // Health check endpoint
 app.get('/', (c) => {
   return c.json({

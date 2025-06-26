@@ -30,25 +30,21 @@ upload.post('/upload', async (c) => {
     const file = formData.get('file') as File;
 
     if (!file) {
+      console.log('No file uploaded');
       return c.json<ApiResponse>({ success: false, error: 'No file uploaded' }, 400);
     }
 
+    console.log(`Uploaded file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+
     const buffer = await file.arrayBuffer();
-    // This object is created just to satisfy the validator's expected format
-    const multerFile: Express.Multer.File = {
-      fieldname: 'file',
+    const fileBuffer = Buffer.from(buffer);
+
+    const validation = await validator.validateUploadedFile({
       originalname: file.name,
-      encoding: '7bit',
       mimetype: file.type,
       size: buffer.byteLength,
-      buffer: Buffer.from(buffer),
-      destination: '',
-      filename: '',
-      path: '',
-      stream: null as any
-    };
-
-    const validation = await validator.validateUploadedFile(multerFile);
+      buffer: fileBuffer
+    });
     if (!validation.isValid || !validation.sanitizedName) {
       return c.json<ApiResponse>({ success: false, error: validation.error }, 400);
     }
@@ -57,12 +53,8 @@ upload.post('/upload', async (c) => {
     let dataset: Dataset;
 
     if (fileExtension === '.csv') {
-      // For CSVs, process directly from the in-memory buffer
-      const fileBuffer = Buffer.from(buffer);
       dataset = await fileProcessor.processCsvFile(fileBuffer, validation.sanitizedName);
-
     } else if (fileExtension === '.xlsx' || fileExtension === '.xls') {
-      // For Excel, the library needs a temporary file path
       const uploadsDir = path.join(process.cwd(), 'data', 'uploads');
       if (!existsSync(uploadsDir)) {
         mkdirSync(uploadsDir, { recursive: true });
@@ -103,6 +95,7 @@ upload.post('/upload', async (c) => {
 
   } catch (error) {
     console.error('Upload error:', error);
+    console.log('Upload failed');
     return c.json<ApiResponse>({
       success: false,
       error: error instanceof Error ? error.message : 'Upload failed'

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Dataset } from '../types/data';
 import { ChatRequest, ChatResponse } from '../types/api';
 
@@ -37,16 +37,21 @@ export class GeminiService {
 
       const result = await chat.sendMessage(userMessage);
       const aiResponse = result.response.text();
-      
-      const parsedResponse = this.parseAIResponse(aiResponse, dataset);
+
+      let parsedResponse = this.parseAIResponse(aiResponse, dataset);
+      let analysisResults = null;
+
+      if (parsedResponse.analysis) {
+        analysisResults = await this.performAnalysis(parsedResponse.analysis, dataset);
+      }
 
       return {
         response: parsedResponse.explanation,
         analysis: parsedResponse.analysis,
         visualization: parsedResponse.visualization,
-        suggestions: parsedResponse.suggestions
+        suggestions: parsedResponse.suggestions,
+        analysisResults: analysisResults,
       };
-
     } catch (error) {
       console.error('Gemini API error:', error);
       throw new Error('Failed to process natural language query with Gemini. Please try again.');
@@ -119,7 +124,7 @@ Please analyze this request in the context of the provided dataset and suggest t
           explanation: parsed.explanation || aiResponse,
           analysis: parsed.analysis,
           visualization: parsed.visualization,
-          suggestions: parsed.suggestions || []
+          suggestions: parsed.suggestions || [],
         };
       }
     } catch (error) {
@@ -127,12 +132,12 @@ Please analyze this request in the context of the provided dataset and suggest t
     }
 
     const fallbackAnalysis = this.extractAnalysisIntent(aiResponse, dataset);
-    
+
     return {
       explanation: aiResponse,
       analysis: fallbackAnalysis.analysis,
       visualization: fallbackAnalysis.visualization,
-      suggestions: this.generateSuggestions(dataset)
+      suggestions: this.generateSuggestions(dataset),
     };
   }
 
@@ -148,7 +153,7 @@ Please analyze this request in the context of the provided dataset and suggest t
       if (numericColumns.length >= 2) {
         return {
           analysis: { type: 'correlation', columns: numericColumns.slice(0, 2) },
-          visualization: { type: 'scatter', title: `Correlation between ${numericColumns[0]} and ${numericColumns[1]}`, description: 'Scatter plot showing the relationship' }
+          visualization: { type: 'scatter', title: `Correlation between ${numericColumns[0]} and ${numericColumns[1]}`, description: 'Scatter plot showing the relationship' },
         };
       }
     }
@@ -157,7 +162,7 @@ Please analyze this request in the context of the provided dataset and suggest t
       if (numericColumns.length > 0) {
         return {
           analysis: { type: 'histogram', columns: [numericColumns[0]] },
-          visualization: { type: 'histogram', title: `Distribution of ${numericColumns[0]}`, description: 'Histogram showing value distribution' }
+          visualization: { type: 'histogram', title: `Distribution of ${numericColumns[0]}`, description: 'Histogram showing value distribution' },
         };
       }
     }
@@ -165,7 +170,7 @@ Please analyze this request in the context of the provided dataset and suggest t
     if (lowerResponse.includes('frequency') || lowerResponse.includes('count')) {
       return {
         analysis: { type: 'frequency', columns: [allColumns[0]] },
-        visualization: { type: 'bar', title: `Frequency of ${allColumns[0]}`, description: 'Bar chart of frequency distribution' }
+        visualization: { type: 'bar', title: `Frequency of ${allColumns[0]}`, description: 'Bar chart of frequency distribution' },
       };
     }
 
@@ -187,11 +192,11 @@ Please analyze this request in the context of the provided dataset and suggest t
     const firstValue = values[0];
     if (typeof firstValue === 'number') return 'numeric';
     if (typeof firstValue === 'boolean') return 'boolean';
-    
+
     if (typeof firstValue === 'string' && !isNaN(Date.parse(firstValue))) {
       return 'date';
     }
-    
+
     return 'categorical';
   }
 
@@ -205,7 +210,7 @@ Please analyze this request in the context of the provided dataset and suggest t
   private generateSuggestions(dataset: Dataset): string[] {
     const suggestions: string[] = [];
     const numericColumns = this.getNumericColumns(dataset);
-    
+
     if (numericColumns.length >= 2) {
       suggestions.push('Explore correlations between numeric variables');
     }
@@ -213,7 +218,107 @@ Please analyze this request in the context of the provided dataset and suggest t
       suggestions.push('Generate descriptive statistics for key variables');
     }
     suggestions.push('Analyze frequency distributions of categorical variables');
-    
+
     return suggestions;
+  }
+
+  private async performAnalysis(analysis: any, dataset: Dataset): Promise<any> {
+    if (!analysis || !analysis.type || !analysis.columns) {
+      return null;
+    }
+
+    const { type, columns } = analysis;
+    const dataAnalyzer = (await import('../services/dataAnalyzer')).DataAnalyzer.getInstance();
+
+    try {
+      switch (type) {
+        case 'descriptive':
+          if (columns.length !== 1) return null;
+          return dataAnalyzer.calculateDescriptiveStats(dataset, columns[0]);
+        case 'correlation':
+          if (columns.length !== 2) return null;
+          return dataAnalyzer.calculateCorrelation(dataset, columns[0], columns[1]);
+        case 'frequency':
+          if (columns.length !== 1) return null;
+          return dataAnalyzer.generateFrequencyDistribution(dataset, columns[0]);
+        case 'histogram':
+          if (columns.length !== 1) return null;
+          return dataAnalyzer.generateHistogram(dataset, columns[0]);
+        case 'scatter':
+          if (columns.length !== 2) return null;
+          return dataAnalyzer.generateScatterPlot(dataset, columns[0], columns[1]);
+        case 'kaplan-meier':
+          if (columns.length !== 2) return null;
+          const timeToEvent = dataset.rows.map(row => row[columns[0]]).filter(val => val !== null && typeof val === 'number') as number[];
+          const eventOccurred = dataset.rows.map(row => row[columns[1]]).filter(val => val !== null && typeof val === 'boolean') as boolean[];
+          return dataAnalyzer.calculateKaplanMeier(timeToEvent, eventOccurred);
+        case 'chi-squared with post-hoc analysis':
+          return this.performChiSquaredWithPostHoc(dataset, columns, analysis.parameters);
+        case 'summary':
+          return dataAnalyzer.getSummaryStatistics(dataset);
+        default:
+          return null;
+      }
+    } catch (error) {
+      console.error('Error performing analysis:', error);
+      return null;
+    }
+  }
+
+  // ----- CHI-SQUARED (WITH TYPE FIXES) -----
+  private async performChiSquaredWithPostHoc(
+    dataset: Dataset,
+    columns: string[],
+    parameters: any
+  ): Promise<any> {
+    if (columns.length < 2) {
+      return null;
+    }
+
+    const hospitalizationColumn = columns[0];
+    const otherColumns = columns.slice(1);
+
+    // Create a contingency table
+    const contingencyTable: Record<string, Record<string, number>> = {};
+
+    dataset.rows.forEach(row => {
+      const hospitalizationStatus = row[hospitalizationColumn];
+      if (hospitalizationStatus === null || hospitalizationStatus === undefined) return;
+
+      const key = otherColumns.map(col => row[col]).join('-');
+      if (!contingencyTable[key]) {
+        contingencyTable[key] = {
+          [String(hospitalizationStatus)]: 1,
+        };
+      } else {
+        contingencyTable[key][String(hospitalizationStatus)] =
+          (contingencyTable[key][String(hospitalizationStatus)] || 0) + 1;
+      }
+    });
+
+    // Prepare observed array for chi-squared test: number[][]
+    const observed: number[][] = Object.values(contingencyTable).map(row =>
+      Object.values(row).map(Number)
+    );
+
+    // Dynamically import and declare module for chi2 test
+    // @ts-ignore: type declaration
+    const chi2test = await import('@stdlib/stats-chisqtest');
+    const opts = { correct: true };
+    const out = chi2test.factory(observed, opts);
+
+    if (out.rejected) {
+      console.log('Null hypothesis rejected: dependency.');
+    } else {
+      console.log('Failed to reject the null hypothesis: no dependency.');
+    }
+
+    // Post-hoc analysis (not implemented)
+    // TODO: Implement detailed residual analysis if required
+
+    return {
+      chi2: out,
+      contingencyTable: contingencyTable,
+    };
   }
 }
