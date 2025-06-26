@@ -5,7 +5,7 @@ import { ChatRequest, ChatResponse } from '../types/api';
 export class DeepSeekService {
   private static instance: DeepSeekService;
   private apiKey: string;
-  private baseUrl: string = 'https://api.deepseek.com/v1/chat/completions';
+  private baseUrl: string = 'https://api.deepseek.com/v1';
 
   private constructor() {
     this.apiKey = process.env.DEEPSEEK_API_KEY || '';
