@@ -2,44 +2,35 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { GeminiService } from '../services/geminiService';
 import { DataValidator } from '../services/validator';
-import { ApiResponse, ChatRequest } from '../types/api';
+import { ApiResponse, ChatRequest, ChatResponse } from '../types/api'; // Added ChatResponse
 import { datasets } from './upload';
-import { DataAnalyzer } from '../services/dataAnalyzer';
+// import { DataAnalyzer } from '../services/dataAnalyzer'; // DataAnalyzer is used by GeminiService
 
 const chat = new Hono();
 
 // Enable CORS for all routes
 chat.use('*', cors({
-  origin: '*',
+  origin: '*', // Allow all origins for simplicity in MVP. Restrict in production.
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
 const geminiService = GeminiService.getInstance();
 const validator = DataValidator.getInstance();
-const dataAnalyzer = DataAnalyzer.getInstance();
+// const dataAnalyzer = DataAnalyzer.getInstance(); // Not directly used here anymore
 
 // Store chat history for context (in production, use a database)
-const chatHistory = new Map<string, Array<{ role: string; content: string; timestamp: string; analysisResults?: any }>>();
+// The structure of history objects should align with what ChatInterface.tsx expects for display
+const chatHistory = new Map<string, Array<{
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  analysis?: any; // from Gemini's response
+  visualization?: any; // from Gemini's response
+  suggestions?: string[]; // from Gemini's response
+  analysisResults?: any; // actual results from DataAnalyzer via GeminiService
+}>>();
 
-function isStatisticalQuery(message: string): string | null {
-  const lowerMsg = message.toLowerCase();
-  if (lowerMsg.includes('correlation')) return 'correlation';
-  if (lowerMsg.includes('histogram')) return 'histogram';
-  if (lowerMsg.includes('frequency')) return 'frequency';
-  if (
-    lowerMsg.includes('summary') ||
-    lowerMsg.includes('describe') ||
-    lowerMsg.includes('descriptive statistics') ||
-    lowerMsg.includes('mean') ||
-    lowerMsg.includes('average') ||
-    lowerMsg.includes('median') ||
-    lowerMsg.includes('standard deviation') ||
-    lowerMsg.includes('variance') ||
-    lowerMsg.includes('distribution')
-  ) return 'summary';
-  return null;
-}
 
 chat.post('/query', async (c) => {
   try {
@@ -49,18 +40,20 @@ chat.post('/query', async (c) => {
     // Validate request
     const validation = validator.validateChatRequest(body);
     if (!validation.isValid) {
-      return c.json<ApiResponse>({
+      return c.json<ApiResponse<null>>({ // Specify null for data type on error
         success: false,
-        error: validation.error
+        error: validation.error,
+        data: null
       }, 400);
     }
 
     // Validate dataset exists
     const datasetValidation = validator.validateDatasetExists(datasetId, datasets);
     if (!datasetValidation.isValid) {
-      return c.json<ApiResponse>({
+      return c.json<ApiResponse<null>>({
         success: false,
-        error: datasetValidation.error
+        error: datasetValidation.error,
+        data: null
       }, 404);
     }
 
@@ -80,106 +73,34 @@ chat.post('/query', async (c) => {
       timestamp: new Date().toISOString()
     });
 
-    // Decide which statistical analysis to perform
-    let analysisResults = null;
-    let explanation = "Performing analysis as requested.";
-    let analysisType: string | null = null;
-    let analysisColumns: string[] | null = null;
+    // Process the query using GeminiService
+    const chatRequest: ChatRequest = {
+        message: sanitizedMessage,
+        datasetId
+    };
+    const geminiServiceResponse: ChatResponse = await geminiService.processNaturalLanguageQuery(chatRequest, dataset);
 
-    const lowerMsg = sanitizedMessage.toLowerCase();
-
-    if (lowerMsg.includes('correlation')) {
-      explanation = "Performing correlation analysis.";
-      analysisType = 'correlation';
-      analysisColumns = dataset.columns.filter(col => {
-        const values = dataset.rows.map(row => row[col]).filter(val => val !== null && typeof val === 'number');
-        return values.length > 0;
-      }).slice(0, 2);
-    } else if (lowerMsg.includes('histogram')) {
-      explanation = "Generating histogram.";
-      analysisType = 'histogram';
-      analysisColumns = dataset.columns.filter(col => {
-        const values = dataset.rows.map(row => row[col]).filter(val => val !== null && typeof val === 'number');
-        return values.length > 0;
-      }).slice(0, 1);
-    } else if (lowerMsg.includes('frequency')) {
-      explanation = "Generating frequency distribution.";
-      analysisType = 'frequency';
-      analysisColumns = [dataset.columns[0]];
-    } else if (lowerMsg.includes('summary') || lowerMsg.includes('describe')) {
-      explanation = "Generating summary statistics.";
-      analysisType = 'summary';
-      analysisColumns = [];
-    } else {
-      explanation = "Sorry, I could not understand your statistical request. Try keywords like 'correlation', 'histogram', 'frequency', or 'summary'.";
-    }
-
-    if (analysisType) {
-      try {
-        switch (analysisType) {
-          case 'correlation':
-            if (analysisColumns && analysisColumns.length >= 2) {
-              analysisResults = await dataAnalyzer.calculateCorrelation(dataset, analysisColumns[0]!, analysisColumns[1]!);
-              explanation = `Correlation analysis completed for columns: ${analysisColumns[0]} and ${analysisColumns[1]}.`;
-            } else {
-              explanation = "Need at least two numeric columns for correlation analysis.";
-            }
-            break;
-          case 'histogram':
-            if (analysisColumns && analysisColumns.length >= 1) {
-              analysisResults = await dataAnalyzer.generateHistogram(dataset, analysisColumns[0]!);
-              explanation = `Histogram generated for column: ${analysisColumns[0]}.`;
-            } else {
-              explanation = "Need at least one numeric column for histogram.";
-            }
-            break;
-          case 'frequency':
-            if (analysisColumns && analysisColumns.length >= 1) {
-              analysisResults = await dataAnalyzer.generateFrequencyDistribution(dataset, analysisColumns[0]!);
-              explanation = `Frequency distribution generated for column: ${analysisColumns[0]}.`;
-            } else {
-              explanation = "Need at least one column for frequency distribution.";
-            }
-            break;
-          case 'summary':
-            analysisResults = await dataAnalyzer.getSummaryStatistics(dataset);
-            explanation = "Summary statistics generated for the dataset.";
-          break;
-          default:
-            explanation = "Statistical analysis type not recognized.";
-        }
-      } catch (e) {
-        explanation = "Error during statistical analysis.";
-      }
-    } else {
-        const chatRequest: ChatRequest = {
-            message: sanitizedMessage,
-            datasetId
-        };
-        const geminiResponse = await geminiService.processNaturalLanguageQuery(chatRequest, dataset);
-        explanation = geminiResponse.response;
-        analysisResults = null;
-    }
-
-    // Add AI (system) response to history
+    // Add AI response to history
     history.push({
       role: 'assistant',
-      content: explanation,
-      analysisResults: analysisResults,
+      content: geminiServiceResponse.response, // Gemini's textual explanation
+      analysis: geminiServiceResponse.analysis, // Gemini's suggested analysis object
+      visualization: geminiServiceResponse.visualization, // Gemini's suggested visualization object
+      suggestions: geminiServiceResponse.suggestions, // Gemini's suggestions
+      analysisResults: geminiServiceResponse.analysisResults, // Structured results from DataAnalyzer
       timestamp: new Date().toISOString()
     });
 
-    // Limit history size (keep last 20 messages)
+    // Limit history size (keep last 20 messages, user + assistant = 10 exchanges)
     if (history.length > 20) {
       history.splice(0, history.length - 20);
     }
 
-    return c.json<ApiResponse>({
+    // Return the full response from GeminiService, which includes explanation,
+    // structured analysis results, visualization suggestions, etc.
+    return c.json<ApiResponse<ChatResponse>>({
       success: true,
-      data: {
-        response: explanation,
-        analysisResults: analysisResults
-      },
+      data: geminiServiceResponse,
       message: 'Query processed successfully'
     });
 

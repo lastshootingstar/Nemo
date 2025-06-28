@@ -1,13 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ScatterChart, Scatter as ScatterPlot, PieChart, Pie, Cell, ComposedChart } from 'recharts';
-import { BarChart3, TrendingUp, PieChart as PieIcon, Activity, Play } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart as PieIcon, Activity, Play, HelpCircle } from 'lucide-react'; // Added HelpCircle
+
+// This interface should align with the `visualizationConfig` from App.tsx (originally from GeminiService/DataAnalyzer)
+interface VisualizationConfig {
+  type: 'bar' | 'line' | 'scatter' | 'histogram' | 'pie' | 'boxplot'; // Match Gemini's suggestions
+  title?: string;
+  description?: string;
+  x_axis?: string; // Column name for x-axis
+  y_axis?: string; // Column name for y-axis
+  data?: any[];    // Data for the chart, specific to the type
+  // Potentially add other fields Gemini might suggest or DataAnalyzer provides
+  columns?: string[]; // e.g. for histogram, the column to analyze
+}
+
 
 interface VisualizationPanelProps {
   datasetId: string;
+  visualizationConfig: VisualizationConfig | null; // New prop from App.tsx
 }
 
-interface AnalysisResult {
+interface AnalysisResult { // This is for results from its own API calls
   type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix';
   title: string;
   description: string;
@@ -29,35 +43,132 @@ interface DatasetDetails {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
-const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) => {
-  const [selectedAnalysis, setSelectedAnalysis] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix'>('frequency');
+const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visualizationConfig }) => {
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix'>('frequency');
   const [selectedColumn, setSelectedColumn] = useState<string>('');
   const [selectedColumn2, setSelectedColumn2] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
-  // Fetch dataset details
-  const { data: dataset } = useQuery<DatasetDetails>({
-    queryKey: ['dataset', datasetId],
+  // This state will hold the actual data/config used by renderVisualization
+  // It can be populated by `visualizationConfig` prop or by internal analysis results
+  const [currentChartDisplay, setCurrentChartDisplay] = useState<{
+    type: string; // e.g., 'bar', 'histogram', 'scatter', 'kaplan-meier', 'correlationMatrix'
+    data: any;
+    title?: string;
+    description?: string;
+    xAxisKey?: string; // Specific for recharts
+    yAxisKey?: string; // Specific for recharts
+    dataKey?: string; // Specific for recharts (e.g. for Bar's dataKey)
+  } | null>(null);
+
+  // Local state for results from panel's own analysis triggers
+  // const [internalAnalysisResult, setInternalAnalysisResult] = useState<AnalysisResult | null>(null); // Replaced by currentChartDisplay for rendering
+
+
+  // Effect to update chart when visualizationConfig prop changes (from AI Chat)
+  useEffect(() => {
+    if (visualizationConfig) {
+      // console.log("VisualizationPanel: Received new visualizationConfig prop:", visualizationConfig);
+
+      // If visualizationConfig from Gemini/Chat has chart-ready data from DataAnalyzer (via StatisticalResult.visualization.data)
+      if (visualizationConfig.data && visualizationConfig.data.length > 0 && visualizationConfig.type) {
+         setCurrentChartDisplay({
+            type: visualizationConfig.type,
+            data: visualizationConfig.data,
+            title: visualizationConfig.title || 'AI Suggested Chart',
+            description: visualizationConfig.description,
+            xAxisKey: visualizationConfig.x_axis || (visualizationConfig.type === 'histogram' ? 'range' : 'value'),
+            yAxisKey: visualizationConfig.y_axis || 'count', // Default yAxisKey for many charts
+            dataKey: visualizationConfig.y_axis || (visualizationConfig.type === 'histogram' || visualizationConfig.type === 'bar' || visualizationConfig.type === 'frequency' ? 'count' : (visualizationConfig.type === 'kaplan-meier' ? 'survival' : 'value'))
+        });
+        // Optionally, update the panel's own selectors to match this AI suggestion
+        if (visualizationConfig.type === 'histogram' || visualizationConfig.type === 'frequency' || visualizationConfig.type === 'bar' ) {
+            if(visualizationConfig.x_axis && datasetDetails?.columns.includes(visualizationConfig.x_axis)) setSelectedColumn(visualizationConfig.x_axis);
+            else if(visualizationConfig.columns && visualizationConfig.columns.length > 0 && datasetDetails?.columns.includes(visualizationConfig.columns[0])) setSelectedColumn(visualizationConfig.columns[0]);
+            setSelectedAnalysisType(visualizationConfig.type as any);
+        } else if (visualizationConfig.type === 'scatter' && visualizationConfig.x_axis && visualizationConfig.y_axis && datasetDetails?.columns.includes(visualizationConfig.x_axis) && datasetDetails?.columns.includes(visualizationConfig.y_axis)) {
+            setSelectedColumn(visualizationConfig.x_axis);
+            setSelectedColumn2(visualizationConfig.y_axis);
+            setSelectedAnalysisType('scatter');
+        }
+         // TODO: Add similar logic for other types like kaplan-meier if Gemini provides column names in visualizationConfig.columns
+
+      } else if (visualizationConfig.type && visualizationConfig.columns && visualizationConfig.columns.length > 0) {
+        // If config has type and columns, but no direct data, trigger an internal analysis
+        const autoAnalysisType = visualizationConfig.type as any;
+
+        let params: any = {};
+        let canTrigger = false;
+        const currentSelectedCol = visualizationConfig.columns[0];
+        const currentSelectedCol2 = visualizationConfig.columns.length >= 2 ? visualizationConfig.columns[1] : '';
+
+
+        if (autoAnalysisType === 'histogram' || autoAnalysisType === 'frequency' || autoAnalysisType === 'bar') {
+            if(datasetDetails?.columns.includes(currentSelectedCol)) setSelectedColumn(currentSelectedCol);
+            setSelectedAnalysisType(autoAnalysisType);
+            params = { column: currentSelectedCol, bins: 10 };
+            canTrigger = !!currentSelectedCol;
+        } else if ((autoAnalysisType === 'scatter' || autoAnalysisType === 'correlation') && currentSelectedCol && currentSelectedCol2) {
+            if(datasetDetails?.columns.includes(currentSelectedCol)) setSelectedColumn(currentSelectedCol);
+            if(datasetDetails?.columns.includes(currentSelectedCol2)) setSelectedColumn2(currentSelectedCol2);
+            setSelectedAnalysisType(autoAnalysisType === 'correlation' ? 'correlation' : 'scatter');
+
+            if (autoAnalysisType === 'correlation') {
+                params = { column1: currentSelectedCol, column2: currentSelectedCol2 };
+            } else { // scatter
+                 params = { xColumn: currentSelectedCol, yColumn: currentSelectedCol2 };
+            }
+            canTrigger = true;
+        }
+
+        if (canTrigger) {
+            // console.log(`VisualizationPanel: Triggering internal analysis for AI suggestion: ${autoAnalysisType} with params`, params);
+             analysisMutation.mutate({ type: autoAnalysisType, params });
+        } else {
+            // console.log("VisualizationPanel: AI suggested config, but not enough to auto-trigger analysis or no direct data", visualizationConfig);
+        }
+      } else if (visualizationConfig.type === 'summary' || visualizationConfig.type === 'correlationMatrix') {
+        // For types that don't require specific columns from Gemini to trigger
+        setSelectedAnalysisType(visualizationConfig.type as any);
+        analysisMutation.mutate({ type: visualizationConfig.type, params: {} });
+      }
+      else {
+         // console.log("VisualizationPanel: Received AI config, but not plottable or actionable", visualizationConfig);
+         // setCurrentChartDisplay(null); // Clear chart if AI suggestion is not usable
+      }
+    }
+  }, [visualizationConfig, datasetId, datasetDetails]); // Added datasetDetails to ensure columns are available for setSelectedColumn
+
+
+  // Fetch dataset details (for column selectors)
+  const { data: datasetDetails, isLoading: isLoadingDatasetDetails } = useQuery<DatasetDetails>({
+    queryKey: ['datasetDetailsForViz', datasetId], // Unique query key
     queryFn: async () => {
       const response = await fetch(`/api/upload/datasets/${datasetId}`);
-      if (!response.ok) throw new Error('Failed to fetch dataset');
+      if (!response.ok) throw new Error('Failed to fetch dataset details for visualization panel');
       const result = await response.json();
       return result.data;
     },
+    enabled: !!datasetId, // Only run if datasetId is present
   });
 
-  // Analysis mutation
+  // Analysis mutation (triggered by panel's own controls OR by useEffect from prop)
   const analysisMutation = useMutation({
     mutationFn: async ({ type, params }: { type: string; params: any }): Promise<AnalysisResult> => {
       let url = '';
       let options: RequestInit = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
 
-      switch (type) {
+      // Ensure type is one of the expected values for the switch
+      const validAnalysisType = type as typeof selectedAnalysisType;
+
+      switch (validAnalysisType) {
         case 'frequency':
           url = `/api/analysis/frequency/${datasetId}/${params.column}`;
+          options.method = 'GET';
+          delete options.body;
           break;
         case 'histogram':
           url = `/api/analysis/histogram/${datasetId}/${params.column}`;
+          options.method = 'POST';
           options.body = JSON.stringify({ bins: params.bins || 10 });
           break;
         case 'correlation':
@@ -79,30 +190,52 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           break;
         case 'correlationMatrix':
           url = `/api/analysis/correlation-matrix/${datasetId}`;
-          options.method = 'POST';
+          options.method = 'GET';
           delete options.body;
           break;
+        default:
+          throw new Error(`Unsupported analysis type in mutation: ${type}`);
       }
 
       const response = await fetch(url, options);
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({error: "Analysis request failed"}));
         throw new Error(errorData.error || 'Analysis failed');
       }
       const result = await response.json();
+      if(!result.success) throw new Error(result.error || "Analysis API returned an error");
       return result.data;
     },
     onSuccess: (data) => {
-      setAnalysisResult(data);
+      // setInternalAnalysisResult(data); // Not strictly needed if currentChartDisplay is source of truth
+      setCurrentChartDisplay({
+        type: data.visualization?.type || data.type,
+        data: data.data, // This should be the plottable data from DataAnalyzer's StatisticalResult.data
+        title: data.title,
+        description: data.description,
+        xAxisKey: data.visualization?.xAxis || (data.type === 'scatter' ? 'x' : (data.type === 'histogram' ? 'range' : 'value')),
+        yAxisKey: data.visualization?.yAxis || (data.type === 'scatter' ? 'y' : 'count'),
+        dataKey: data.visualization?.yAxis || (data.type === 'histogram' || data.type === 'frequency' || data.type === 'bar' ? 'count' : (data.type === 'kaplan-meier' ? 'survival' : 'value'))
+      });
     },
+    onError: (error: Error) => {
+        console.error("Visualization Panel Analysis Error:", error);
+        setCurrentChartDisplay({ // Show error in chart display area
+            type: 'error',
+            data: null,
+            title: "Analysis Error",
+            description: error.message
+        });
+    }
   });
 
   const handleRunAnalysis = () => {
-    if (!dataset) return;
+    if (!datasetDetails) return; // Ensure datasetDetails is loaded
 
     let params: any = {};
+    let analysisToRun = selectedAnalysisType; // Use the state for user-selected type
 
-    switch (selectedAnalysis) {
+    switch (analysisToRun) {
       case 'frequency':
         if (!selectedColumn) return;
         params = { column: selectedColumn };
@@ -131,18 +264,52 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
         break;
     }
 
-    analysisMutation.mutate({ type: selectedAnalysis, params });
+    analysisMutation.mutate({ type: analysisToRun, params });
   };
 
   const renderVisualization = () => {
-    if (!analysisResult) return null;
+    // Now uses currentChartDisplay state
+    if (!currentChartDisplay || (!currentChartDisplay.data && currentChartDisplay.type !== 'error')) {
+      if (analysisMutation.isPending || isLoadingDatasetDetails) {
+        return <div className="flex justify-center items-center h-40"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
+      }
+       if (currentChartDisplay && currentChartDisplay.type === 'error') {
+        return (
+            <div className="p-4 text-center text-red-500 dark:text-red-400">
+                <AlertTriangle className="w-10 h-10 mx-auto mb-2" />
+                <p className="font-semibold">{currentChartDisplay.title}</p>
+                <p className="text-sm">{currentChartDisplay.description}</p>
+            </div>
+        );
+      }
+      return (
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            <HelpCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            Select an analysis type and columns, then click "Run Analysis".
+            Or, ask the AI to generate a visualization.
+        </div>
+      );
+    }
 
-    const { data, visualization } = analysisResult;
+    const { type, data, title, description, xAxisKey, yAxisKey, dataKey } = currentChartDisplay;
+     if (type === 'error') { // Handle error display explicitly if data is null
+        return (
+            <div className="p-4 text-center text-red-500 dark:text-red-400">
+                <AlertTriangle className="w-10 h-10 mx-auto mb-2" />
+                <p className="font-semibold">{title || "Error"}</p>
+                <p className="text-sm">{description}</p>
+            </div>
+        );
+    }
+    if (!data) return <p className="text-sm text-center text-gray-500">No data available for this visualization.</p>;
 
-    switch (visualization?.type || analysisResult.type) {
-      case 'bar':
+
+    switch (type) {
+      case 'bar': // Handles frequency as well if data is {value: string, count: number}[]
       case 'frequency':
         if (Array.isArray(data)) {
+          // Ensure data has 'value' and 'count' keys if that's what x/yAxisKey map to
+          const chartData = data.map(item => ({ ...item, [xAxisKey || 'value']: item[xAxisKey || 'value'], [dataKey || 'count']: item[dataKey || 'count']}));
           return (
             <ResponsiveContainer width="100%" height={400}>
               <BarChart data={data}>
