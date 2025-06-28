@@ -264,5 +264,118 @@ analysis.post('/scatter/:datasetId', async (c) => {
   }
 });
 
+analysis.post('/kaplan-meier/:datasetId', async (c) => {
+  try {
+    const datasetId = c.req.param('datasetId');
+    const body = await c.req.json();
+    const { timeColumn, eventColumn } = body;
+
+    if (!timeColumn || !eventColumn) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Both timeColumn and eventColumn are required'
+      }, 400);
+    }
+
+    // Validate dataset exists
+    const datasetValidation = validator.validateDatasetExists(datasetId, datasets);
+    if (!datasetValidation.isValid) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: datasetValidation.error
+      }, 404);
+    }
+
+    const dataset = datasets.get(datasetId)!;
+
+    // Validate columns exist
+    const columnValidation = validator.validateColumnName(timeColumn, dataset.columns);
+    if (!columnValidation.isValid) {
+      return c.json<ApiResponse>({ success: false, error: columnValidation.error }, 400);
+    }
+    const eventColumnValidation = validator.validateColumnName(eventColumn, dataset.columns);
+    if (!eventColumnValidation.isValid) {
+        return c.json<ApiResponse>({ success: false, error: eventColumnValidation.error }, 400);
+    }
+
+    const timeToEvent = dataset.rows.map(row => row[timeColumn]).filter(val => val !== null && typeof val === 'number') as number[];
+    const eventOccurred = dataset.rows.map(row => row[eventColumn]).filter(val => val !== null && typeof val === 'boolean') as boolean[];
+
+    if (timeToEvent.length !== eventOccurred.length) {
+        return c.json<ApiResponse>({
+            success: false,
+            error: 'Time and event data must have the same number of entries.'
+        }, 400);
+    }
+
+    const result = dataAnalyzer.calculateKaplanMeier(timeToEvent, eventOccurred);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    return c.json<ApiResponse>({
+      success: false,
+      error: error instanceof Error ? error.message : 'Kaplan-Meier analysis failed'
+    }, 500);
+  }
+});
 export default analysis;
+
+analysis.post('/statistics/run-test', async (c) => {
+  return c.json({ success: true, message: 'Run test endpoint' });
+});
+
+analysis.get('/statistics/available-tests', async (c) => {
+  return c.json({ success: true, message: 'Available tests endpoint' });
+});
+
+analysis.post('/statistics/validate-data', async (c) => {
+  return c.json({ success: true, message: 'Validate data endpoint' });
+});
+
+analysis.post('/correlation-matrix/:datasetId', async (c) => {
+  try {
+    const datasetId = c.req.param('datasetId');
+
+    // Validate dataset exists
+    const datasetValidation = validator.validateDatasetExists(datasetId, datasets);
+    if (!datasetValidation.isValid) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: datasetValidation.error
+      }, 404);
+    }
+
+    const dataset = datasets.get(datasetId)!;
+
+    // Validate that there are at least two numeric columns
+    const numericColumns = dataset.columns.filter(col => {
+      const values = dataset.rows.map(row => row[col]).filter(val => val !== null && typeof val === 'number');
+      return values.length > 0;
+    });
+
+    if (numericColumns.length < 2) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'At least two numeric columns are required for correlation matrix'
+      }, 400);
+    }
+
+    const correlationMatrix = dataAnalyzer.calculateCorrelationMatrix(dataset);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: correlationMatrix
+    });
+
+  } catch (error) {
+    return c.json<ApiResponse>({
+      success: false,
+      error: error instanceof Error ? error.message : 'Correlation matrix analysis failed'
+    }, 500);
+  }
+});
 

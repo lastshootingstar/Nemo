@@ -41,8 +41,12 @@ const DataUpload: React.FC<DataUploadProps> = ({ onDatasetUploaded }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Upload failed');
+        } catch (e) {
+          throw new Error(response.statusText || 'An unknown error occurred');
+        }
       }
 
       const result = await response.json();
@@ -88,7 +92,7 @@ const DataUpload: React.FC<DataUploadProps> = ({ onDatasetUploaded }) => {
   });
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
           Upload Your Dataset

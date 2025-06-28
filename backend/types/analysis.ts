@@ -50,3 +50,18 @@ export interface VisualizationConfig {
   data: any[];
 }
 
+export interface TTestResult {
+  testType: 'Independent Samples T-Test';
+  group1Name: string;
+  group2Name: string;
+  group1Mean: number;
+  group2Mean: number;
+  group1Variance: number;
+  group2Variance: number;
+  group1Size: number;
+  group2Size: number;
+  tStatistic: number;
+  degreesOfFreedom: number;
+  pValue?: number; // p-value might be harder to calculate directly with simple-stats for MVP
+  interpretation?: string; // Optional textual interpretation
+}

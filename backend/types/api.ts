@@ -26,6 +26,7 @@ export interface ChatResponse {
   analysis?: any;
   visualization?: any;
   suggestions?: string[];
+  analysisResults?: any;
 }
 
 export interface ExportRequest {

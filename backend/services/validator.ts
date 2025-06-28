@@ -30,7 +30,7 @@ export class DataValidator {
     context: Joi.array().items(Joi.string()).optional()
   });
 
-  async validateUploadedFile(file: Express.Multer.File): Promise<{ isValid: boolean; error?: string; sanitizedName?: string }> {
+  async validateUploadedFile(file: { originalname: string, mimetype: string, size: number, buffer: Buffer }): Promise<{ isValid: boolean; error?: string; sanitizedName?: string }> {
     try {
       // Validate basic file properties
       const { error } = this.uploadSchema.validate({
@@ -46,9 +46,16 @@ export class DataValidator {
       // Validate file type by reading file buffer
       const fileType = await FileType.fromBuffer(file.buffer);
       const allowedTypes = ['xlsx', 'xls', 'csv'];
-      
-      if (fileType && !allowedTypes.includes(fileType.ext)) {
-        return { isValid: false, error: 'Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.' };
+
+      // Allow octet-stream for CSV as a fallback
+      if (file.mimetype === 'application/octet-stream' && !file.originalname.endsWith('.csv')) {
+          if (fileType && !allowedTypes.includes(fileType.ext)) {
+              return { isValid: false, error: 'Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.' };
+          }
+      } else if (file.mimetype !== 'application/octet-stream') {
+          if (fileType && !allowedTypes.includes(fileType.ext)) {
+              return { isValid: false, error: 'Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.' };
+          }
       }
 
       // Sanitize filename

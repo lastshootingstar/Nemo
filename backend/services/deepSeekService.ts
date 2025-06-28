@@ -46,7 +46,7 @@ export class DeepSeekService {
       );
 
       const aiResponse = response.data.choices[0].message.content;
-      
+
       // Parse the AI response to extract analysis instructions
       const parsedResponse = this.parseAIResponse(aiResponse, dataset);
 
@@ -59,7 +59,7 @@ export class DeepSeekService {
 
     } catch (error) {
       console.error('DeepSeek API error:', error);
-      
+
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 401) {
           throw new Error('Invalid API key. Please check your DeepSeek API configuration.');
@@ -67,7 +67,7 @@ export class DeepSeekService {
           throw new Error('Rate limit exceeded. Please try again later.');
         }
       }
-      
+
       throw new Error('Failed to process natural language query. Please try again.');
     }
   }
@@ -78,6 +78,18 @@ export class DeepSeekService {
       const dataType = this.inferColumnType(dataset, col);
       return `- ${col} (${dataType}): Sample values: ${sampleValues.join(', ')}`;
     }).join('\n');
+
+    // Add information about available statistical tests
+    const availableTests = [
+      'descriptive statistics',
+      'correlation analysis',
+      'frequency distribution',
+      'histogram',
+      't-test',
+      'anova',
+      'linear regression',
+      'logistic regression'
+    ].join(', ');
 
     return `You are a data analysis assistant for NemoClinical, helping researchers and public health teams analyze their data.
 
@@ -90,6 +102,9 @@ Dataset Information:
 Available Columns:
 ${columnInfo}
 
+Available Statistical Tests:
+${availableTests}
+
 Your role is to:
 1. Understand natural language queries about the data
 2. Suggest appropriate statistical analyses
@@ -101,12 +116,12 @@ When responding, structure your answer as JSON with these fields:
 {
   "explanation": "Clear explanation of what analysis should be performed",
   "analysis": {
-    "type": "descriptive|correlation|frequency|histogram|scatter|summary",
+    "type": "descriptive|correlation|frequency|histogram|t-test|anova|linear regression|logistic regression",
     "columns": ["column1", "column2"],
     "parameters": {}
   },
   "visualization": {
-    "type": "bar|line|scatter|histogram|pie",
+    "type": "bar|line|scatter|histogram|pie|box plot",
     "title": "Chart title",
     "description": "What the visualization shows"
   },
@@ -137,7 +152,7 @@ Please analyze this request in the context of the provided dataset and suggest t
           explanation: parsed.explanation || aiResponse,
           analysis: parsed.analysis,
           visualization: parsed.visualization,
-          suggestions: parsed.suggestions || []
+          suggestions: parsed.suggestions || this.generateSuggestions(dataset, parsed.analysis) // Pass analysis to generateSuggestions
         };
       }
     } catch (error) {
@@ -146,12 +161,12 @@ Please analyze this request in the context of the provided dataset and suggest t
 
     // Fallback: analyze the text response to extract intent
     const fallbackAnalysis = this.extractAnalysisIntent(aiResponse, dataset);
-    
+
     return {
       explanation: aiResponse,
       analysis: fallbackAnalysis.analysis,
       visualization: fallbackAnalysis.visualization,
-      suggestions: this.generateSuggestions(dataset)
+      suggestions: this.generateSuggestions(dataset, fallbackAnalysis.analysis) // Pass analysis to generateSuggestions
     };
   }
 
@@ -239,12 +254,12 @@ Please analyze this request in the context of the provided dataset and suggest t
     const firstValue = values[0];
     if (typeof firstValue === 'number') return 'numeric';
     if (typeof firstValue === 'boolean') return 'boolean';
-    
+
     // Check if it's a date
     if (typeof firstValue === 'string' && !isNaN(Date.parse(firstValue))) {
       return 'date';
     }
-    
+
     return 'categorical';
   }
 
@@ -255,23 +270,31 @@ Please analyze this request in the context of the provided dataset and suggest t
     });
   }
 
-  private generateSuggestions(dataset: Dataset): string[] {
+  private generateSuggestions(dataset: Dataset, analysis?: any): string[] {
     const suggestions: string[] = [];
     const numericColumns = this.getNumericColumns(dataset);
-    
+
+    if (analysis?.type === 'correlation') {
+      suggestions.push('Explore scatter plot to visualize the correlation');
+    }
+
+    if (analysis?.type === 'histogram') {
+      suggestions.push('Check descriptive statistics for more details');
+    }
+
     if (numericColumns.length >= 2) {
       suggestions.push('Explore correlations between numeric variables');
       suggestions.push('Create scatter plots to visualize relationships');
     }
-    
+
     if (numericColumns.length > 0) {
       suggestions.push('Generate descriptive statistics for key variables');
       suggestions.push('Create histograms to understand data distributions');
     }
-    
+
     suggestions.push('Analyze frequency distributions of categorical variables');
     suggestions.push('Look for patterns that might indicate public health trends');
-    
+
     return suggestions;
   }
 
@@ -320,4 +343,3 @@ Please provide insights and recommendations based on these results.`;
     }
   }
 }
-
