@@ -191,13 +191,14 @@ const formatNumber = (num: number | undefined | null, precision = 2): string => 
             </table>
         </div>
         <AskAIButton resultData={freqDataWrapper} resultTypeName="Frequency Distribution" />
-        {freqDataWrapper.visualization?.type === 'bar' && freqDataWrapper.visualization?.xAxis && (
+        {freqDataWrapper.visualization && freqDataWrapper.visualization.type === 'bar' && freqDataWrapper.visualization.xAxis && (
           <button
             onClick={() => {
+              const viz = freqDataWrapper.visualization;
               onVisualize({
                 type: 'bar',
-                x_axis: freqDataWrapper.visualization.xAxis,
-                y_axis: freqDataWrapper.visualization.yAxis,
+                x_axis: viz!.xAxis,
+                y_axis: viz!.yAxis,
                 data: freqDataWrapper.data, // Pass the actual data for direct plotting
                 title: freqDataWrapper.title,
                 description: freqDataWrapper.description
@@ -212,50 +213,51 @@ const formatNumber = (num: number | undefined | null, precision = 2): string => 
         )}
     </div>
   );
-
-  const renderHistogramData = (histDataWrapper: StatisticalResult) => (
-     <div className="p-4 border dark:border-gray-700 rounded-lg">
-        <h4 className="text-md font-semibold text-teal-600 dark:text-teal-400 mb-2">{histDataWrapper.title || "Histogram Data"}</h4>
-         <div className="max-h-60 overflow-y-auto text-sm">
-            <table className="min-w-full">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                        <th className="py-2 px-3 text-left font-medium">Range</th>
-                        <th className="py-2 px-3 text-left font-medium">Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {(histDataWrapper.data as Array<{range: string, count: number}>).map((bin, index) => (
-                        <tr key={index} className="border-b dark:border-gray-600 last:border-b-0">
-                            <td className="py-1.5 px-3">{bin.range}</td>
-                            <td className="py-1.5 px-3">{bin.count}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-        <AskAIButton resultData={histDataWrapper} resultTypeName="Histogram Data" />
-        {histDataWrapper.visualization?.type === 'histogram' && histDataWrapper.visualization?.xAxis && (
-          <button
-            onClick={() => {
-              onVisualize({
-                type: 'histogram',
-                x_axis: histDataWrapper.visualization.xAxis,
-                y_axis: histDataWrapper.visualization.yAxis,
-                data: histDataWrapper.data, // Pass the actual data for direct plotting
-                title: histDataWrapper.title,
-                description: histDataWrapper.description
-              });
-              onSwitchTab('visualization');
-            }}
-            className="mt-3 ml-2 flex items-center text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-500 transition-colors"
-          >
-            <BarChartBig size={14} className="mr-1.5" />
-            Generate Histogram
-          </button>
-        )}
-    </div>
-  );
+ 
+   const renderHistogramData = (histDataWrapper: StatisticalResult) => (
+      <div className="p-4 border dark:border-gray-700 rounded-lg">
+         <h4 className="text-md font-semibold text-teal-600 dark:text-teal-400 mb-2">{histDataWrapper.title || "Histogram Data"}</h4>
+          <div className="max-h-60 overflow-y-auto text-sm">
+             <table className="min-w-full">
+                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700">
+                     <tr>
+                         <th className="py-2 px-3 text-left font-medium">Range</th>
+                         <th className="py-2 px-3 text-left font-medium">Count</th>
+                     </tr>
+                 </thead>
+                 <tbody>
+                     {(histDataWrapper.data as Array<{range: string, count: number}>).map((bin, index) => (
+                         <tr key={index} className="border-b dark:border-gray-600 last:border-b-0">
+                             <td className="py-1.5 px-3">{bin.range}</td>
+                             <td className="py-1.5 px-3">{bin.count}</td>
+                         </tr>
+                     ))}
+                 </tbody>
+             </table>
+         </div>
+         <AskAIButton resultData={histDataWrapper} resultTypeName="Histogram Data" />
+         {histDataWrapper.visualization && histDataWrapper.visualization.type === 'histogram' && histDataWrapper.visualization.xAxis && (
+           <button
+             onClick={() => {
+               const viz = histDataWrapper.visualization;
+               onVisualize({
+                 type: 'histogram',
+                 x_axis: viz!.xAxis,
+                 y_axis: viz!.yAxis,
+                 data: histDataWrapper.data, // Pass the actual data for direct plotting
+                 title: histDataWrapper.title,
+                 description: histDataWrapper.description
+               });
+               onSwitchTab('visualization');
+             }}
+             className="mt-3 ml-2 flex items-center text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-500 transition-colors"
+           >
+             <BarChartBig size={14} className="mr-1.5" />
+             Generate Histogram
+           </button>
+         )}
+     </div>
+   );
 
 
   const renderContent = () => {
