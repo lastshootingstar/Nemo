@@ -5,6 +5,8 @@ import { DescriptiveStats, CorrelationResult, TTestResult, StatisticalResult } f
 interface ResultsPanelProps {
   datasetId: string; // Currently unused, but might be useful later
   analysisResults: any | null;
+  onVisualize: (config: any) => void; // New prop to trigger visualization
+  onSwitchTab: (tab: 'chat' | 'results' | 'visualization') => void; // New prop to switch tabs
 }
 
 // Helper to format numbers nicely
@@ -12,10 +14,10 @@ const formatNumber = (num: number | undefined | null, precision = 2): string => 
   if (num === undefined || num === null || isNaN(num)) return 'N/A';
   return num.toFixed(precision);
 };
-
-const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults }) => {
-  if (!analysisResults) {
-    return (
+ 
+ const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults, onVisualize, onSwitchTab }) => {
+   if (!analysisResults) {
+     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center">
         <BarChartBig className="w-16 h-16 text-gray-400 dark:text-gray-500 mb-4" />
         <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Analysis Results</h3>
@@ -96,6 +98,23 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults }) => {
         )}
       </ul>
       {!isSummaryItem && <AskAIButton resultData={stats} resultTypeName="Descriptive Statistics" />}
+      {!isSummaryItem && (
+        <button
+          onClick={() => {
+            onVisualize({
+              type: 'histogram',
+              columns: [stats.column],
+              title: `Histogram of ${stats.column}`,
+              description: `Distribution of ${stats.column}`
+            });
+            onSwitchTab('visualization');
+          }}
+          className="mt-3 ml-2 flex items-center text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-500 transition-colors"
+        >
+          <BarChartBig size={14} className="mr-1.5" />
+          Generate Histogram
+        </button>
+      )}
     </div>
   );
 
@@ -106,8 +125,25 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults }) => {
       </h4>
       <p className="text-sm">Pearson's r: <span className="font-bold">{formatNumber(corr.coefficient, 3)}</span></p>
        {corr.pValue !== undefined && <p className="text-sm">P-value: <span className="font-bold">{formatNumber(corr.pValue, 4)}</span></p>}
-       <p className="text-xs mt-1 italic">{corr.interpretation || "A measure of linear correlation between two sets of data."}</p>
+       <p className="text-xs mt-1 italic">A measure of linear correlation between two sets of data.</p>
        <AskAIButton resultData={corr} resultTypeName="Correlation Result" />
+       <button
+         onClick={() => {
+           onVisualize({
+             type: 'scatter',
+             x_axis: corr.variable1,
+             y_axis: corr.variable2,
+             columns: [corr.variable1, corr.variable2],
+             title: `Scatter Plot of ${corr.variable1} vs ${corr.variable2}`,
+             description: `Relationship between ${corr.variable1} and ${corr.variable2}`
+           });
+           onSwitchTab('visualization');
+         }}
+         className="mt-3 ml-2 flex items-center text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-500 transition-colors"
+       >
+         <BarChartBig size={14} className="mr-1.5" />
+         Generate Scatter Plot
+       </button>
     </div>
   );
 
@@ -155,6 +191,25 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults }) => {
             </table>
         </div>
         <AskAIButton resultData={freqDataWrapper} resultTypeName="Frequency Distribution" />
+        {freqDataWrapper.visualization?.type === 'bar' && freqDataWrapper.visualization?.xAxis && (
+          <button
+            onClick={() => {
+              onVisualize({
+                type: 'bar',
+                x_axis: freqDataWrapper.visualization.xAxis,
+                y_axis: freqDataWrapper.visualization.yAxis,
+                data: freqDataWrapper.data, // Pass the actual data for direct plotting
+                title: freqDataWrapper.title,
+                description: freqDataWrapper.description
+              });
+              onSwitchTab('visualization');
+            }}
+            className="mt-3 ml-2 flex items-center text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500 transition-colors"
+          >
+            <BarChartBig size={14} className="mr-1.5" />
+            Generate Bar Chart
+          </button>
+        )}
     </div>
   );
 
@@ -180,6 +235,25 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ analysisResults }) => {
             </table>
         </div>
         <AskAIButton resultData={histDataWrapper} resultTypeName="Histogram Data" />
+        {histDataWrapper.visualization?.type === 'histogram' && histDataWrapper.visualization?.xAxis && (
+          <button
+            onClick={() => {
+              onVisualize({
+                type: 'histogram',
+                x_axis: histDataWrapper.visualization.xAxis,
+                y_axis: histDataWrapper.visualization.yAxis,
+                data: histDataWrapper.data, // Pass the actual data for direct plotting
+                title: histDataWrapper.title,
+                description: histDataWrapper.description
+              });
+              onSwitchTab('visualization');
+            }}
+            className="mt-3 ml-2 flex items-center text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-500 transition-colors"
+          >
+            <BarChartBig size={14} className="mr-1.5" />
+            Generate Histogram
+          </button>
+        )}
     </div>
   );
 

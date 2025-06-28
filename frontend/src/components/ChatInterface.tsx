@@ -233,7 +233,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ datasetId }) => {
               Ask questions or use the quick analysis buttons above.
             </p>
             {initialSuggestions && initialSuggestions.length > 0 && (
-              <div className="max-w-md mx-auto">
+              <div className="w-full">
                 <div className="flex items-center space-x-2 mb-2">
                   <Lightbulb className="w-4 h-4 text-yellow-400" />
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-300">

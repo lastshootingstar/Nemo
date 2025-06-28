@@ -1,0 +1,11 @@
+PatientID,Age,Gender,BMI,BloodPressure_Systolic,BloodPressure_Diastolic,Cholesterol_Total,Diagnosis,Medication,FollowUp_Days
+P001,45,Female,28.5,130,85,200,Hypertension,Lisinopril,90
+P002,62,Male,31.2,145,90,240,Diabetes Type 2,Metformin,180
+P003,30,Female,22.1,110,70,180,None,None,30
+P004,55,Male,26.7,125,80,210,High Cholesterol,Atorvastatin,90
+P005,70,Female,33.0,150,95,260,Hypertension,Amlodipine,120
+P006,40,Male,24.9,120,75,190,None,None,60
+P007,50,Female,29.8,135,88,220,Pre-diabetes,Diet & Exercise,90
+P008,68,Male,30.5,140,85,230,Hypertension,Hydrochlorothiazide,180
+P009,35,Female,23.7,115,72,175,None,None,30
+P010,75,Male,34.1,160,100,280,Heart Disease,Aspirin,90

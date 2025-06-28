@@ -1,4 +1,16 @@
 {
+  "environment": {
+    "requiredVars": {
+      "DEEPSEEK_API_KEY": "API key for DeepSeek AI service",
+      "GEMINI_API_KEY": "API key for Gemini AI service",
+      "PORT": "HTTP server port (default: 7776)"
+    },
+    "validation": {
+      "DEEPSEEK_API_KEY": "non-empty string",
+      "GEMINI_API_KEY": "non-empty string",
+      "PORT": "number between 1024-65535"
+    }
+  },
   "architecture": {
     "type": "Client-Server",
     "backend": {
@@ -28,7 +40,7 @@
     "backend/routes/upload.ts": { "purpose": "Handles file upload, validation, processing, dataset CRUD", "dependsOn": ["../services/fileProcessor", "../services/validator", "../types/api", "../types/data", "multer", "fs", "path"], "usedBy": ["backend/server.ts"], "keyExports": ["datasets", "default upload router"], "keyTypes": ["UploadResponse"] },
     "backend/routes/analysis.ts": { "purpose": "Endpoint for dataset analysis requests", "dependsOn": ["../services/dataAnalyzer", "../types/api", "../types/data"], "usedBy": ["backend/server.ts"], "keyExports": ["default analysis router"], "keyTypes": [] },
     "backend/routes/chat.ts": { "purpose": "Endpoint for AI-powered chat on datasets", "dependsOn": ["../services/deepSeekService", "../types/api"], "usedBy": ["backend/server.ts"], "keyExports": ["default chat router"], "keyTypes": [] },
-    "backend/services": { "purpose": "Business logic / domain services", "contains": ["fileProcessor.ts", "validator.ts", "dataAnalyzer.ts", "deepSeekService.ts"] },
+    "backend/services": { "purpose": "Business logic / domain services", "contains": ["fileProcessor.ts", "validator.ts", "dataAnalyzer.ts", "deepSeekService.ts", "geminiService.ts", "statisticalTestsService.ts"] },
     "backend/services/fileProcessor.ts": { "purpose": "Parse CSV/XLSX files, build Dataset, analyze columns", "dependsOn": ["csv-parse", "xlsx", "../types/data", "../services/validator"], "usedBy": ["backend/routes/upload.ts", "backend/routes/analysis.ts"], "keyExports": ["FileProcessor"], "keyTypes": ["Dataset"] },
     "backend/services/validator.ts": { "purpose": "Validate & sanitize uploaded files", "dependsOn": ["path", "mime-types"], "usedBy": ["backend/routes/upload.ts"], "keyExports": ["DataValidator"], "keyTypes": ["ValidationResult"] },
     "backend/services/dataAnalyzer.ts": { "purpose": "Perform statistical & summary analysis on Dataset", "dependsOn": ["../types/data", "../services/fileProcessor"], "usedBy": ["backend/routes/analysis.ts"], "keyExports": ["DataAnalyzer"], "keyTypes": ["AnalysisResult"] },
