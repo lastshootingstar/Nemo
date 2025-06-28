@@ -48,7 +48,7 @@ export class DataAnalyzer {
       const key = val?.toString() || '';
       frequency[key] = (frequency[key] || 0) + 1;
     });
-    
+
     const maxFreq = Math.max(...Object.values(frequency));
     const modes = Object.keys(frequency).filter(key => frequency[key] === maxFreq);
     result.mode = modes.length === 1 ? (isNaN(Number(modes[0])) ? modes[0] : Number(modes[0])) : modes[0];
@@ -60,7 +60,7 @@ export class DataAnalyzer {
     const values1 = dataset.rows
       .map(row => row[column1])
       .filter(val => val !== null && typeof val === 'number') as number[];
-    
+
     const values2 = dataset.rows
       .map(row => row[column2])
       .filter(val => val !== null && typeof val === 'number') as number[];
@@ -84,7 +84,7 @@ export class DataAnalyzer {
     }
 
     const coefficient = ss.sampleCorrelation(pairs.map(p => p[0]), pairs.map(p => p[1]));
-    
+
     return {
       variable1: column1,
       variable2: column2,
@@ -93,10 +93,38 @@ export class DataAnalyzer {
     };
   }
 
+  calculateCorrelationMatrix(dataset: Dataset): { [column1: string]: { [column2: string]: number | null } } {
+    const numericColumns = dataset.columns.filter(col => {
+      const values = dataset.rows.map(row => row[col]).filter(val => val !== null && typeof val === 'number');
+      return values.length > 0;
+    });
+
+    const correlationMatrix: { [column1: string]: { [column2: string]: number | null } } = {};
+
+    for (let i = 0; i < numericColumns.length; i++) {
+      const column1 = numericColumns[i];
+      correlationMatrix[column1] = {};
+      for (let j = i; j < numericColumns.length; j++) {
+        const column2 = numericColumns[j];
+        try {
+          const correlation = this.calculateCorrelation(dataset, column1, column2).coefficient;
+          correlationMatrix[column1][column2] = correlation;
+          correlationMatrix[column2][column1] = correlation; // The matrix is symmetric
+        } catch (error) {
+          console.warn(`Correlation calculation failed for ${column1} and ${column2}: ${error}`);
+          correlationMatrix[column1][column2] = null;
+          correlationMatrix[column2][column1] = null;
+        }
+      }
+    }
+
+    return correlationMatrix;
+  }
+
   generateFrequencyDistribution(dataset: Dataset, columnName: string): StatisticalResult {
     const values = dataset.rows.map(row => row[columnName]).filter(val => val !== null);
     const frequency: { [key: string]: number } = {};
-    
+
     values.forEach(val => {
       const key = val?.toString() || '';
       frequency[key] = (frequency[key] || 0) + 1;
@@ -135,14 +163,14 @@ export class DataAnalyzer {
     const min = Math.min(...values);
     const max = Math.max(...values);
     const binWidth = (max - min) / bins;
-    
+
     const histogram: { range: string; count: number }[] = [];
-    
+
     for (let i = 0; i < bins; i++) {
       const binStart = min + i * binWidth;
       const binEnd = min + (i + 1) * binWidth;
       const count = values.filter(val => val >= binStart && (i === bins - 1 ? val <= binEnd : val < binEnd)).length;
-      
+
       histogram.push({
         range: `${binStart.toFixed(2)}-${binEnd.toFixed(2)}`,
         count
@@ -168,7 +196,7 @@ export class DataAnalyzer {
 
   generateScatterPlot(dataset: Dataset, xColumn: string, yColumn: string): StatisticalResult {
     const data: { x: number; y: number }[] = [];
-    
+
     dataset.rows.forEach(row => {
       const xVal = row[xColumn];
       const yVal = row[yColumn];
@@ -218,4 +246,3 @@ export class DataAnalyzer {
     return compute(timeToEvent, eventOccurred);
   }
 }
-

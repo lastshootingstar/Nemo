@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ScatterChart, Scatter as ScatterPlot, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ScatterChart, Scatter as ScatterPlot, PieChart, Pie, Cell, ComposedChart } from 'recharts';
 import { BarChart3, TrendingUp, PieChart as PieIcon, Activity, Play } from 'lucide-react';
 
 interface VisualizationPanelProps {
@@ -8,7 +8,7 @@ interface VisualizationPanelProps {
 }
 
 interface AnalysisResult {
-  type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier';
+  type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix';
   title: string;
   description: string;
   data: any;
@@ -30,7 +30,7 @@ interface DatasetDetails {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) => {
-  const [selectedAnalysis, setSelectedAnalysis] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier'>('frequency');
+  const [selectedAnalysis, setSelectedAnalysis] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix'>('frequency');
   const [selectedColumn, setSelectedColumn] = useState<string>('');
   const [selectedColumn2, setSelectedColumn2] = useState<string>('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -77,6 +77,11 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
           url = `/api/analysis/kaplan-meier/${datasetId}`;
           options.body = JSON.stringify({ timeColumn: params.timeColumn, eventColumn: params.eventColumn });
           break;
+        case 'correlationMatrix':
+          url = `/api/analysis/correlation-matrix/${datasetId}`;
+          options.method = 'POST';
+          delete options.body;
+          break;
       }
 
       const response = await fetch(url, options);
@@ -96,7 +101,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
     if (!dataset) return;
 
     let params: any = {};
-    
+
     switch (selectedAnalysis) {
       case 'frequency':
         if (!selectedColumn) return;
@@ -120,6 +125,9 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
       case 'kaplan-meier':
         if (!selectedColumn || !selectedColumn2) return;
         params = { timeColumn: selectedColumn, eventColumn: selectedColumn2 };
+        break;
+      case 'correlationMatrix':
+        params = {};
         break;
     }
 
@@ -216,11 +224,43 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" dataKey="time" label={{ value: 'Time', position: 'insideBottomRight', offset: 0 }} />
-                <YAxis type="number" dataKey="survival" label={{ value: 'Survival Probability', angle: -90, position: 'insideLeft' }} domain={[0, 1]}/>
+                <YAxis type="number" dataKey="survival" label={{ value: 'Survival Probability', angle: -90, position: 'insideLeft' }} domain={[0, 1]} />
                 <Tooltip />
                 <Legend />
                 <Line type="stepAfter" dataKey="survival" stroke="#8884d8" strokeWidth={2} dot={false} />
               </LineChart>
+            </ResponsiveContainer>
+          );
+        }
+        break;
+      
+      case 'correlationMatrix':
+        if (typeof data === 'object' && data !== null) {
+          // Convert the correlation matrix object to an array of objects suitable for recharts
+          const matrixData: { column1: string; column2: string; correlation: number | null }[] = [];
+          for (const column1 in data) {
+            if (data.hasOwnProperty(column1)) {
+              for (const column2 in data[column1]) {
+                if (data[column1].hasOwnProperty(column2)) {
+                  matrixData.push({
+                    column1,
+                    column2,
+                    correlation: data[column1][column2]
+                  });
+                }
+              }
+            }
+          }
+
+          return (
+            <ResponsiveContainer width="100%" height={400}>
+              <ScatterChart>
+                <CartesianGrid />
+                <XAxis dataKey="column1" type="category" />
+                <YAxis dataKey="column2" type="category" />
+                <Tooltip />
+                <ScatterPlot data={matrixData} fill="#8884d8" />
+              </ScatterChart>
             </ResponsiveContainer>
           );
         }
@@ -266,7 +306,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
           Generate Visualizations
         </h2>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Analysis Type */}
           <div>
@@ -284,6 +324,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               <option value="scatter">Scatter Plot</option>
               <option value="summary">Summary Statistics</option>
               <option value="kaplan-meier">Kaplan-Meier Survival Analysis</option>
+              <option value="correlationMatrix">Correlation Matrix</option>
             </select>
           </div>
 
@@ -335,7 +376,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               onClick={handleRunAnalysis}
               disabled={analysisMutation.isPending ||
                 (selectedAnalysis !== 'summary' && !selectedColumn) ||
-                ((selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && !selectedColumn2)
+                ((selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && !selectedColumn2) ||
+                (selectedAnalysis === 'correlationMatrix')
               }
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -363,7 +405,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
               {analysisResult.title}
             </h3>
           </div>
-          
+
           <p className="text-gray-600 mb-6">
             {analysisResult.description}
           </p>
@@ -427,8 +469,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
 
         <button
           onClick={() => setSelectedAnalysis('scatter')}
-          className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
-        >
+          className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left">
           <Activity className="w-8 h-8 text-orange-600 mb-2" />
           <h3 className="font-medium text-gray-900">Scatter Plot</h3>
           <p className="text-sm text-gray-600">
@@ -441,4 +482,3 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId }) =>
 };
 
 export default VisualizationPanel;
-

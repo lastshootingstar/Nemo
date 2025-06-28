@@ -281,4 +281,8 @@ chat.get('/suggestions/:datasetId', async (c) => {
   }
 });
 
+chat.post('/chat/results-discussion', async (c) => {
+  return c.json({ success: true, message: 'Results discussion endpoint' });
+});
+
 export default chat;
