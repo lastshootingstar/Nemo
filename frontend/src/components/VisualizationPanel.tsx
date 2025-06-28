@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, ScatterChart, Scatter as ScatterPlot, PieChart, Pie, Cell, ComposedChart } from 'recharts';
-import { BarChart3, TrendingUp, PieChart as PieIcon, Activity, Play, HelpCircle } from 'lucide-react'; // Added HelpCircle
+import { BarChart3, TrendingUp, PieChart as PieIcon, Activity, Play, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react'; // Added HelpCircle
 
 // This interface should align with the `visualizationConfig` from App.tsx (originally from GeminiService/DataAnalyzer)
 interface VisualizationConfig {
-  type: 'bar' | 'line' | 'scatter' | 'histogram' | 'pie' | 'boxplot'; // Match Gemini's suggestions
+  type: string; // 'bar' | 'line' | 'scatter' | 'histogram' | 'pie' | 'boxplot'; // Match Gemini's suggestions
   title?: string;
   description?: string;
   x_axis?: string; // Column name for x-axis
@@ -22,14 +22,16 @@ interface VisualizationPanelProps {
 }
 
 interface AnalysisResult { // This is for results from its own API calls
-  type: 'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix';
+  type: string; //'descriptive' | 'correlation' | 'frequency' | 'histogram' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix';
   title: string;
   description: string;
   data: any;
   visualization?: {
-    type: 'bar' | 'line' | 'scatter' | 'histogram' | 'pie';
+    type: string; //'bar' | 'line' | 'scatter' | 'histogram' | 'pie' | 'correlationMatrix';
     title: string;
     description: string;
+    xAxis?: string;
+    yAxis?: string;
   };
 }
 
@@ -44,6 +46,7 @@ interface DatasetDetails {
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visualizationConfig }) => {
+  console.log('VisualizationPanel props:', { datasetId, visualizationConfig });
   const [selectedAnalysisType, setSelectedAnalysisType] = useState<'frequency' | 'histogram' | 'correlation' | 'scatter' | 'summary' | 'kaplan-meier' | 'correlationMatrix'>('frequency');
   const [selectedColumn, setSelectedColumn] = useState<string>('');
   const [selectedColumn2, setSelectedColumn2] = useState<string>('');
@@ -59,6 +62,18 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
     yAxisKey?: string; // Specific for recharts
     dataKey?: string; // Specific for recharts (e.g. for Bar's dataKey)
   } | null>(null);
+
+    // Fetch dataset details (for column selectors)
+    const { data: datasetDetails, isLoading: isLoadingDatasetDetails } = useQuery<DatasetDetails>({
+      queryKey: ['datasetDetailsForViz', datasetId], // Unique query key
+      queryFn: async () => {
+        const response = await fetch(`/api/upload/datasets/${datasetId}`);
+        if (!response.ok) throw new Error('Failed to fetch dataset details for visualization panel');
+        const result = await response.json();
+        return result.data;
+      },
+      enabled: !!datasetId, // Only run if datasetId is present
+    });
 
   // Local state for results from panel's own analysis triggers
   // const [internalAnalysisResult, setInternalAnalysisResult] = useState<AnalysisResult | null>(null); // Replaced by currentChartDisplay for rendering
@@ -78,14 +93,14 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
             description: visualizationConfig.description,
             xAxisKey: visualizationConfig.x_axis || (visualizationConfig.type === 'histogram' ? 'range' : 'value'),
             yAxisKey: visualizationConfig.y_axis || 'count', // Default yAxisKey for many charts
-            dataKey: visualizationConfig.y_axis || (visualizationConfig.type === 'histogram' || visualizationConfig.type === 'bar' || visualizationConfig.type === 'frequency' ? 'count' : (visualizationConfig.type === 'kaplan-meier' ? 'survival' : 'value'))
+            dataKey: visualizationConfig.y_axis || (visualizationConfig.type === 'histogram' || visualizationConfig.type === 'frequency' || visualizationConfig.type === 'bar' ? 'count' : (visualizationConfig.type === 'kaplan-meier' ? 'survival' : 'value'))
         });
         // Optionally, update the panel's own selectors to match this AI suggestion
         if (visualizationConfig.type === 'histogram' || visualizationConfig.type === 'frequency' || visualizationConfig.type === 'bar' ) {
             if(visualizationConfig.x_axis && datasetDetails?.columns.includes(visualizationConfig.x_axis)) setSelectedColumn(visualizationConfig.x_axis);
             else if(visualizationConfig.columns && visualizationConfig.columns.length > 0 && datasetDetails?.columns.includes(visualizationConfig.columns[0])) setSelectedColumn(visualizationConfig.columns[0]);
             setSelectedAnalysisType(visualizationConfig.type as any);
-        } else if (visualizationConfig.type === 'scatter' && visualizationConfig.x_axis && visualizationConfig.y_axis && datasetDetails?.columns.includes(visualizationConfig.x_axis) && datasetDetails?.columns.includes(visualizationConfig.y_axis)) {
+        } else if (visualizationConfig.type === 'scatter' && visualizationConfig.x_axis && visualizationConfig.y_axis && datasetDetails && datasetDetails?.columns.includes(visualizationConfig.x_axis) && datasetDetails?.columns.includes(visualizationConfig.y_axis)) {
             setSelectedColumn(visualizationConfig.x_axis);
             setSelectedColumn2(visualizationConfig.y_axis);
             setSelectedAnalysisType('scatter');
@@ -107,7 +122,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
             setSelectedAnalysisType(autoAnalysisType);
             params = { column: currentSelectedCol, bins: 10 };
             canTrigger = !!currentSelectedCol;
-        } else if ((autoAnalysisType === 'scatter' || autoAnalysisType === 'correlation') && currentSelectedCol && currentSelectedCol2) {
+        } else if (((autoAnalysisType as string) === 'scatter' || (autoAnalysisType as string) === 'correlation') && currentSelectedCol && currentSelectedCol2) {
             if(datasetDetails?.columns.includes(currentSelectedCol)) setSelectedColumn(currentSelectedCol);
             if(datasetDetails?.columns.includes(currentSelectedCol2)) setSelectedColumn2(currentSelectedCol2);
             setSelectedAnalysisType(autoAnalysisType === 'correlation' ? 'correlation' : 'scatter');
@@ -138,18 +153,6 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
     }
   }, [visualizationConfig, datasetId, datasetDetails]); // Added datasetDetails to ensure columns are available for setSelectedColumn
 
-
-  // Fetch dataset details (for column selectors)
-  const { data: datasetDetails, isLoading: isLoadingDatasetDetails } = useQuery<DatasetDetails>({
-    queryKey: ['datasetDetailsForViz', datasetId], // Unique query key
-    queryFn: async () => {
-      const response = await fetch(`/api/upload/datasets/${datasetId}`);
-      if (!response.ok) throw new Error('Failed to fetch dataset details for visualization panel');
-      const result = await response.json();
-      return result.data;
-    },
-    enabled: !!datasetId, // Only run if datasetId is present
-  });
 
   // Analysis mutation (triggered by panel's own controls OR by useEffect from prop)
   const analysisMutation = useMutation({
@@ -215,7 +218,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
         description: data.description,
         xAxisKey: data.visualization?.xAxis || (data.type === 'scatter' ? 'x' : (data.type === 'histogram' ? 'range' : 'value')),
         yAxisKey: data.visualization?.yAxis || (data.type === 'scatter' ? 'y' : 'count'),
-        dataKey: data.visualization?.yAxis || (data.type === 'histogram' || data.type === 'frequency' || data.type === 'bar' ? 'count' : (data.type === 'kaplan-meier' ? 'survival' : 'value'))
+        dataKey: data.visualization?.yAxis || ( (data.type as string) === 'histogram' || (data.type as string) === 'frequency' || (data.type as string) === 'bar' ? 'count' : ( (data.type as string) === 'kaplan-meier' ? 'survival' : 'value'))
       });
     },
     onError: (error: Error) => {
@@ -455,15 +458,15 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
   };
 
   const getNumericColumns = () => {
-    return dataset?.columnInfo.filter(col => col.type === 'number').map(col => col.name) || [];
+    return datasetDetails?.columnInfo.filter(col => col.type === 'number').map(col => col.name) || [];
   };
 
   const getBooleanColumns = () => {
-    return dataset?.columnInfo.filter(col => col.type === 'boolean').map(col => col.name) || [];
+    return datasetDetails?.columnInfo.filter(col => col.type === 'boolean').map(col => col.name) || [];
   };
 
   const getAllColumns = () => {
-    return dataset?.columns || [];
+    return datasetDetails?.columns || [];
   };
 
   return (
@@ -481,8 +484,8 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
               Analysis Type
             </label>
             <select
-              value={selectedAnalysis}
-              onChange={(e) => setSelectedAnalysis(e.target.value as any)}
+              value={selectedAnalysisType}
+              onChange={(e) => setSelectedAnalysisType(e.target.value as any)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="frequency">Frequency Distribution</option>
@@ -496,13 +499,13 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
           </div>
 
           {/* Column 1 */}
-          {(selectedAnalysis === 'frequency' || selectedAnalysis === 'histogram' || selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && (
+          {(selectedAnalysisType === 'frequency' || selectedAnalysisType === 'histogram' || selectedAnalysisType === 'correlation' || selectedAnalysisType === 'scatter' || selectedAnalysisType === 'kaplan-meier') && (
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">
-                {selectedAnalysis === 'frequency' ? 'Column' :
-                 selectedAnalysis === 'histogram' ? 'Numeric Column' :
-                 selectedAnalysis === 'scatter' ? 'X-Axis Column' :
-                 selectedAnalysis === 'kaplan-meier' ? 'Time to Event Column' : 'First Column'}
+                {selectedAnalysisType === 'frequency' ? 'Column' :
+                 selectedAnalysisType === 'histogram' ? 'Numeric Column' :
+                 selectedAnalysisType === 'scatter' ? 'X-Axis Column' :
+                 selectedAnalysisType === 'kaplan-meier' ? 'Time to Event Column' : 'First Column'}
               </label>
               <select
                 value={selectedColumn}
@@ -510,7 +513,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">Select column...</option>
-                {(selectedAnalysis === 'histogram' || selectedAnalysis === 'kaplan-meier' ? getNumericColumns() : getAllColumns()).map(col => (
+                {(selectedAnalysisType === 'histogram' || selectedAnalysisType === 'kaplan-meier' ? getNumericColumns() : getAllColumns()).map(col => (
                   <option key={col} value={col}>{col}</option>
                 ))}
               </select>
@@ -518,11 +521,11 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
           )}
 
           {/* Column 2 */}
-          {(selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && (
+          {(selectedAnalysisType === 'correlation' || selectedAnalysisType === 'scatter' || selectedAnalysisType === 'kaplan-meier') && (
             <div>
               <label className="block text-sm font-medium text-gray-600 mb-2">
-                {selectedAnalysis === 'scatter' ? 'Y-Axis Column' :
-                 selectedAnalysis === 'kaplan-meier' ? 'Event Occurred Column' : 'Second Column'}
+                {selectedAnalysisType === 'scatter' ? 'Y-Axis Column' :
+                 selectedAnalysisType === 'kaplan-meier' ? 'Event Occurred Column' : 'Second Column'}
               </label>
               <select
                 value={selectedColumn2}
@@ -530,7 +533,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="">Select column...</option>
-                {(selectedAnalysis === 'kaplan-meier' ? getBooleanColumns() : getNumericColumns()).map(col => (
+                {(selectedAnalysisType === 'kaplan-meier' ? getBooleanColumns() : getNumericColumns()).map(col => (
                   <option key={col} value={col}>{col}</option>
                 ))}
               </select>
@@ -542,9 +545,9 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
             <button
               onClick={handleRunAnalysis}
               disabled={analysisMutation.isPending ||
-                (selectedAnalysis !== 'summary' && !selectedColumn) ||
-                ((selectedAnalysis === 'correlation' || selectedAnalysis === 'scatter' || selectedAnalysis === 'kaplan-meier') && !selectedColumn2) ||
-                (selectedAnalysis === 'correlationMatrix')
+                (selectedAnalysisType !== 'summary' && !selectedColumn) ||
+                ((selectedAnalysisType === 'correlation' || selectedAnalysisType === 'scatter' || selectedAnalysisType === 'kaplan-meier') && !selectedColumn2) ||
+                (selectedAnalysisType === 'correlationMatrix' && (!datasetDetails?.columnInfo.some(col => col.type === 'number') || datasetDetails?.columnInfo.filter(col => col.type === 'number').length < 2))
               }
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -564,17 +567,17 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
       </div>
 
       {/* Results */}
-      {analysisResult && (
+      {currentChartDisplay && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center space-x-3 mb-4">
             <BarChart3 className="w-6 h-6 text-blue-600" />
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-              {analysisResult.title}
+              {currentChartDisplay.title}
             </h3>
           </div>
 
           <p className="text-gray-600 mb-6">
-            {analysisResult.description}
+            {currentChartDisplay.description}
           </p>
 
           {/* Visualization */}
@@ -589,7 +592,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
             </summary>
             <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-md overflow-x-auto">
               <pre className="text-xs text-gray-600">
-                {JSON.stringify(analysisResult.data, null, 2)}
+                {JSON.stringify(currentChartDisplay.data, null, 2)}
               </pre>
             </div>
           </details>
@@ -600,7 +603,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <button
           onClick={() => {
-            setSelectedAnalysis('summary');
+            setSelectedAnalysisType('summary');
             analysisMutation.mutate({ type: 'summary', params: {} });
           }}
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
@@ -613,7 +616,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
         </button>
 
         <button
-          onClick={() => setSelectedAnalysis('frequency')}
+          onClick={() => setSelectedAnalysisType('frequency')}
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <BarChart3 className="w-8 h-8 text-green-600 mb-2" />
@@ -624,7 +627,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
         </button>
 
         <button
-          onClick={() => setSelectedAnalysis('histogram')}
+          onClick={() => setSelectedAnalysisType('histogram')}
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left"
         >
           <Activity className="w-8 h-8 text-purple-600 mb-2" />
@@ -635,7 +638,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ datasetId, visu
         </button>
 
         <button
-          onClick={() => setSelectedAnalysis('scatter')}
+          onClick={() => setSelectedAnalysisType('scatter')}
           className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-md transition-shadow text-left">
           <Activity className="w-8 h-8 text-orange-600 mb-2" />
           <h3 className="font-medium text-gray-900">Scatter Plot</h3>
